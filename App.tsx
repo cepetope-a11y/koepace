@@ -1,6 +1,6 @@
 // コエペース：アプリ確認用の試作（ロック中でも予定時刻に声が鳴るか、電池がどれだけ減るかを確かめる）
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { AppState, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { createAudioPlayer, setAudioModeAsync, AudioPlayer } from 'expo-audio';
 import * as Speech from 'expo-speech';
@@ -31,6 +31,14 @@ export default function App() {
   const nextNo = useRef(1);
   const player = useRef<AudioPlayer | null>(null);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const sub = useRef<{ remove: () => void } | null>(null);
+  const bgTicks = useRef(0);
+  const [bgCount, setBgCount] = useState(0);
+  const appState = useRef(AppState.currentState);
+  useEffect(() => {
+    const s = AppState.addEventListener('change', (st) => { appState.current = st; });
+    return () => s.remove();
+  }, []);
 
   useEffect(() => {
     return () => stop();
@@ -40,12 +48,19 @@ export default function App() {
   async function start() {
     // 画面が消えても動き続けるよう、ほぼ無音の音をくり返し流し、ロック画面の操作を有効にする
     await setAudioModeAsync({ playsInSilentMode: true, shouldPlayInBackground: true, interruptionMode: 'doNotMix' });
-    const p = createAudioPlayer(require('./assets/silence.wav'));
+    // 画面オフ中はJSのタイマーが止まるため、音声プレーヤーの再生状況の通知（1秒ごと）を時計の代わりに使う
+    const p = createAudioPlayer(require('./assets/silence.wav'), { updateInterval: 1000 });
     p.loop = true;
     p.volume = 0.05;
     p.play();
     p.setActiveForLockScreen(true, { title: 'コエペース 計測中', artist: 'ロック中の読み上げテスト' }, { isLiveStream: true });
     player.current = p;
+    bgTicks.current = 0;
+    setBgCount(0);
+    sub.current = p.addListener('playbackStatusUpdate', () => {
+      if (appState.current !== 'active') { bgTicks.current += 1; setBgCount(bgTicks.current); }
+      tickRef.current();
+    });
 
     const level = await Battery.getBatteryLevelAsync();
     setStartBattery(level);
@@ -58,7 +73,16 @@ export default function App() {
     timer.current = setInterval(tick, 1000);
   }
 
+  const busy = useRef(false);
   async function tick() {
+    if (busy.current) return;
+    busy.current = true;
+    try { await tickBody(); } finally { busy.current = false; }
+  }
+  const tickRef = useRef(tick);
+  tickRef.current = tick;
+
+  async function tickBody() {
     const t = Date.now();
     setNow(t);
     const plannedSec = nextNo.current * intervalRef.current * 60;
@@ -80,6 +104,8 @@ export default function App() {
   function stop() {
     if (timer.current) clearInterval(timer.current);
     timer.current = null;
+    try { sub.current?.remove(); } catch {}
+    sub.current = null;
     try {
       player.current?.clearLockScreenControls();
       player.current?.pause();
@@ -100,7 +126,7 @@ export default function App() {
     <View style={styles.root}>
       <StatusBar style="light" />
       <ScrollView contentContainerStyle={styles.wrap}>
-        <Text style={styles.eyebrow}>APP TEST v0.1</Text>
+        <Text style={styles.eyebrow}>APP TEST v0.2</Text>
         <Text style={styles.h1}>ロック中の読み上げテスト</Text>
         <Text style={styles.sub}>
           スタートしたら画面を消してポケットへ。決めた間隔ごとに「◯分、予定地点です」と鳴るか、遅れや電池の減り方を記録します。
@@ -137,6 +163,7 @@ export default function App() {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>結果</Text>
           <Text style={styles.line}>読み上げ回数：{log.length}回</Text>
+          <Text style={styles.line}>画面オフ中に届いた合図：{bgCount}回（0のままなら、裏で止められています）</Text>
           <Text style={styles.line}>いちばん遅れた読み上げ：{log.length ? `${maxLate.toFixed(1)}秒` : '-'}</Text>
           <Text style={styles.line}>
             電池：{startBattery != null ? `${Math.round(startBattery * 100)}%` : '-'} →{' '}

@@ -22,6 +22,12 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "owner": "cepetopes-team",
+    "extra": {
+      "eas": {
+        "projectId": "0f388c44-72b5-4ee5-87b7-b7338ec71d76"
+      }
     }
   }
 }

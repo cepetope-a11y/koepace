@@ -1,14 +1,12 @@
 // コエペース：アプリ確認用の試作（ロック中でも予定時刻に声が鳴るか、電池がどれだけ減るかを確かめる）
+// v0.3：読み上げと時計をAndroidの常駐サービス（modules/koepace-runner）に移した
 import { useEffect, useRef, useState } from 'react';
-import { AppState, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { AppState, PermissionsAndroid, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { createAudioPlayer, setAudioModeAsync, AudioPlayer } from 'expo-audio';
-import * as Speech from 'expo-speech';
-import * as Battery from 'expo-battery';
-
-type LogItem = { no: number; planned: number; actual: number; battery: number | null };
+import Runner, { RunnerLogItem } from './modules/koepace-runner';
 
 const INTERVALS = [1, 3, 5];
+const MAX_MIN = 6 * 60; // 6時間ぶんの予定を渡す
 
 function fmt(sec: number) {
   const s = Math.max(0, Math.round(sec));
@@ -20,116 +18,87 @@ function fmt(sec: number) {
   return h > 0 ? `${h}:${mm}:${rr}` : `${mm}:${rr}`;
 }
 
+async function askNotification() {
+  if (Platform.OS === 'android' && Number(Platform.Version) >= 33) {
+    try {
+      await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
+    } catch {}
+  }
+}
+
 export default function App() {
   const [intervalMin, setIntervalMin] = useState(1);
   const [running, setRunning] = useState(false);
   const [now, setNow] = useState(Date.now());
-  const [log, setLog] = useState<LogItem[]>([]);
+  const [log, setLog] = useState<RunnerLogItem[]>([]);
   const [startBattery, setStartBattery] = useState<number | null>(null);
-
+  const [error, setError] = useState('');
   const startAt = useRef(0);
-  const nextNo = useRef(1);
-  const player = useRef<AudioPlayer | null>(null);
-  const timer = useRef<ReturnType<typeof setInterval> | null>(null);
-  const sub = useRef<{ remove: () => void } | null>(null);
-  const bgTicks = useRef(0);
-  const [bgCount, setBgCount] = useState(0);
-  const appState = useRef(AppState.currentState);
-  useEffect(() => {
-    const s = AppState.addEventListener('change', (st) => { appState.current = st; });
-    return () => s.remove();
-  }, []);
 
+  function refresh() {
+    try {
+      const r = Runner.isRunning();
+      setRunning(r);
+      if (r) startAt.current = Runner.getStartAt();
+      setLog(Runner.getLog());
+    } catch (e) {
+      setError(String(e));
+    }
+    setNow(Date.now());
+  }
+
+  // 画面を開いたとき・戻ってきたときに、サービスの記録を読み直す
   useEffect(() => {
-    return () => stop();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    refresh();
+    const t = setInterval(refresh, 1000);
+    const s = AppState.addEventListener('change', (st) => { if (st === 'active') refresh(); });
+    return () => { clearInterval(t); s.remove(); };
   }, []);
 
   async function start() {
-    // 画面が消えても動き続けるよう、ほぼ無音の音をくり返し流し、ロック画面の操作を有効にする
-    await setAudioModeAsync({ playsInSilentMode: true, shouldPlayInBackground: true, interruptionMode: 'doNotMix' });
-    // 画面オフ中はJSのタイマーが止まるため、音声プレーヤーの再生状況の通知（1秒ごと）を時計の代わりに使う
-    const p = createAudioPlayer(require('./assets/silence.wav'), { updateInterval: 1000 });
-    p.loop = true;
-    p.volume = 0.05;
-    p.play();
-    p.setActiveForLockScreen(true, { title: 'コエペース 計測中', artist: 'ロック中の読み上げテスト' }, { isLiveStream: true });
-    player.current = p;
-    bgTicks.current = 0;
-    setBgCount(0);
-    sub.current = p.addListener('playbackStatusUpdate', () => {
-      if (appState.current !== 'active') { bgTicks.current += 1; setBgCount(bgTicks.current); }
-      tickRef.current();
-    });
-
-    const level = await Battery.getBatteryLevelAsync();
-    setStartBattery(level);
-    setLog([]);
-    nextNo.current = 1;
-    startAt.current = Date.now();
-    setRunning(true);
-    Speech.speak('計測を始めました。画面を消して、ポケットに入れてください。', { language: 'ja-JP' });
-
-    timer.current = setInterval(tick, 1000);
-  }
-
-  const busy = useRef(false);
-  async function tick() {
-    if (busy.current) return;
-    busy.current = true;
-    try { await tickBody(); } finally { busy.current = false; }
-  }
-  const tickRef = useRef(tick);
-  tickRef.current = tick;
-
-  async function tickBody() {
-    const t = Date.now();
-    setNow(t);
-    const plannedSec = nextNo.current * intervalRef.current * 60;
-    const elapsed = (t - startAt.current) / 1000;
-    if (elapsed >= plannedSec) {
-      const no = nextNo.current;
-      nextNo.current += 1;
-      Speech.speak(`${no * intervalRef.current}分、予定地点です。`, { language: 'ja-JP' });
-      let b: number | null = null;
-      try { b = await Battery.getBatteryLevelAsync(); } catch { b = null; }
-      setLog((prev) => [{ no, planned: plannedSec, actual: elapsed, battery: b }, ...prev]);
+    setError('');
+    await askNotification();
+    const offsets: number[] = [];
+    const texts: string[] = [];
+    for (let m = intervalMin; m <= MAX_MIN; m += intervalMin) {
+      offsets.push(m * 60 * 1000);
+      texts.push(`${m}分、予定地点です。`);
+    }
+    try {
+      setStartBattery(Runner.getBattery());
+      const t = Date.now();
+      startAt.current = t;
+      Runner.start(t, offsets, texts);
+      setLog([]);
+      setRunning(true);
+    } catch (e) {
+      setError(String(e));
     }
   }
 
-  // setInterval の中から最新の間隔を読むため
-  const intervalRef = useRef(intervalMin);
-  useEffect(() => { intervalRef.current = intervalMin; }, [intervalMin]);
-
   function stop() {
-    if (timer.current) clearInterval(timer.current);
-    timer.current = null;
-    try { sub.current?.remove(); } catch {}
-    sub.current = null;
-    try {
-      player.current?.clearLockScreenControls();
-      player.current?.pause();
-      player.current?.remove();
-    } catch {}
-    player.current = null;
-    Speech.stop();
+    try { Runner.stop(); } catch (e) { setError(String(e)); }
+    setLog(Runner.getLog());
     setRunning(false);
   }
 
   const elapsed = running ? (now - startAt.current) / 1000 : 0;
-  const lastBattery = log.length ? log[0].battery : null;
-  const used = startBattery != null && lastBattery != null ? (startBattery - lastBattery) * 100 : null;
-  const hours = log.length ? log[0].actual / 3600 : 0;
-  const maxLate = log.reduce((m, l) => Math.max(m, l.actual - l.planned), 0);
+  const last = log.length ? log[log.length - 1] : null;
+  const lastBattery = last ? last.battery : null;
+  const used = startBattery != null && startBattery >= 0 && lastBattery != null && lastBattery >= 0 ? startBattery - lastBattery : null;
+  const hours = last ? last.actualMs / 3600000 : 0;
+  const maxLate = log.reduce((m, l) => Math.max(m, (l.actualMs - l.plannedMs) / 1000), 0);
+  const noFocus = log.filter((l) => !l.focus).length;
+  const shown = [...log].reverse();
 
   return (
     <View style={styles.root}>
       <StatusBar style="light" />
       <ScrollView contentContainerStyle={styles.wrap}>
-        <Text style={styles.eyebrow}>APP TEST v0.2</Text>
+        <Text style={styles.eyebrow}>APP TEST v0.3</Text>
         <Text style={styles.h1}>ロック中の読み上げテスト</Text>
         <Text style={styles.sub}>
-          スタートしたら画面を消してポケットへ。決めた間隔ごとに「◯分、予定地点です」と鳴るか、遅れや電池の減り方を記録します。
+          スタートしたら画面を消してポケットへ。音楽を聴きながらでもOK。決めた間隔ごとに「◯分、予定地点です」と鳴るか、遅れや電池の減り方を記録します。
         </Text>
 
         <Text style={styles.label}>読み上げの間隔</Text>
@@ -163,22 +132,23 @@ export default function App() {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>結果</Text>
           <Text style={styles.line}>読み上げ回数：{log.length}回</Text>
-          <Text style={styles.line}>画面オフ中に届いた合図：{bgCount}回（0のままなら、裏で止められています）</Text>
           <Text style={styles.line}>いちばん遅れた読み上げ：{log.length ? `${maxLate.toFixed(1)}秒` : '-'}</Text>
+          <Text style={styles.line}>音楽の音量を下げられなかった回数：{log.length ? `${noFocus}回` : '-'}</Text>
           <Text style={styles.line}>
-            電池：{startBattery != null ? `${Math.round(startBattery * 100)}%` : '-'} →{' '}
-            {lastBattery != null ? `${Math.round(lastBattery * 100)}%` : '-'}
+            電池：{startBattery != null && startBattery >= 0 ? `${startBattery}%` : '-'} →{' '}
+            {lastBattery != null && lastBattery >= 0 ? `${lastBattery}%` : '-'}
             {used != null && hours > 0 ? `（1時間あたり約${(used / hours).toFixed(1)}%）` : ''}
           </Text>
+          {error !== '' && <Text style={[styles.line, styles.err]}>エラー：{error}</Text>}
         </View>
 
         <View style={styles.card}>
           <Text style={styles.cardTitle}>記録</Text>
           {log.length === 0 && <Text style={styles.line}>まだありません</Text>}
-          {log.map((l) => (
+          {shown.map((l) => (
             <Text key={l.no} style={styles.line}>
-              {l.no}回目 予定 {fmt(l.planned)} / 実際 {fmt(l.actual)}（{(l.actual - l.planned).toFixed(1)}秒遅れ）
-              {l.battery != null ? ` 電池${Math.round(l.battery * 100)}%` : ''}
+              {l.no}回目 予定 {fmt(l.plannedMs / 1000)} / 実際 {fmt(l.actualMs / 1000)}（{((l.actualMs - l.plannedMs) / 1000).toFixed(1)}秒遅れ）
+              {l.battery >= 0 ? ` 電池${l.battery}%` : ''}
             </Text>
           ))}
         </View>
@@ -188,6 +158,7 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
+  err: { color: '#FCA5A5' },
   root: { flex: 1, backgroundColor: '#111827' },
   wrap: { padding: 20, paddingTop: 56, gap: 12 },
   eyebrow: { color: '#FDBA74', fontSize: 12, fontWeight: '700', letterSpacing: 1 },

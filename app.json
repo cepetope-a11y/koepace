@@ -2,7 +2,7 @@
   "expo": {
     "name": "コエペース",
     "slug": "koepace",
-    "version": "1.0.0",
+    "version": "0.3.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -28,15 +28,6 @@
       "eas": {
         "projectId": "0f388c44-72b5-4ee5-87b7-b7338ec71d76"
       }
-    },
-    "plugins": [
-      [
-        "expo-audio",
-        {
-          "enableBackgroundPlayback": true,
-          "recordAudioAndroid": false
-        }
-      ]
-    ]
+    }
   }
 }

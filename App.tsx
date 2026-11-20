@@ -36,6 +36,7 @@ export default function App() {
   const startAt = useRef(0);
 
   function refresh() {
+    if (!Runner) { setError('裏で動く部分（KoepaceRunner）がアプリに入っていません'); return; }
     try {
       const r = Runner.isRunning();
       setRunning(r);
@@ -56,6 +57,7 @@ export default function App() {
   }, []);
 
   async function start() {
+    if (!Runner) return;
     setError('');
     await askNotification();
     const offsets: number[] = [];
@@ -77,8 +79,8 @@ export default function App() {
   }
 
   function stop() {
-    try { Runner.stop(); } catch (e) { setError(String(e)); }
-    setLog(Runner.getLog());
+    if (!Runner) return;
+    try { Runner.stop(); setLog(Runner.getLog()); } catch (e) { setError(String(e)); }
     setRunning(false);
   }
 
@@ -95,7 +97,7 @@ export default function App() {
     <View style={styles.root}>
       <StatusBar style="light" />
       <ScrollView contentContainerStyle={styles.wrap}>
-        <Text style={styles.eyebrow}>APP TEST v0.3</Text>
+        <Text style={styles.eyebrow}>APP TEST v0.3.1</Text>
         <Text style={styles.h1}>ロック中の読み上げテスト</Text>
         <Text style={styles.sub}>
           スタートしたら画面を消してポケットへ。音楽を聴きながらでもOK。決めた間隔ごとに「◯分、予定地点です」と鳴るか、遅れや電池の減り方を記録します。

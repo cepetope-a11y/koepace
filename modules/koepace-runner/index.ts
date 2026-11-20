@@ -1,4 +1,4 @@
-import { requireNativeModule } from 'expo';
+import { requireOptionalNativeModule } from 'expo';
 
 export type RunnerLogItem = {
   no: number;
@@ -17,4 +17,6 @@ type RunnerModule = {
   getBattery(): number;
 };
 
-export default requireNativeModule<RunnerModule>('KoepaceRunner');
+// 見つからなくてもアプリを落とさず、画面に「見つからない」と出せるようにする
+const Runner = requireOptionalNativeModule<RunnerModule>('KoepaceRunner');
+export default Runner;

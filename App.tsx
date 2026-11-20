@@ -97,7 +97,7 @@ export default function App() {
     <View style={styles.root}>
       <StatusBar style="light" />
       <ScrollView contentContainerStyle={styles.wrap}>
-        <Text style={styles.eyebrow}>APP TEST v0.3.1</Text>
+        <Text style={styles.eyebrow}>APP TEST v0.3.2</Text>
         <Text style={styles.h1}>ロック中の読み上げテスト</Text>
         <Text style={styles.sub}>
           スタートしたら画面を消してポケットへ。音楽を聴きながらでもOK。決めた間隔ごとに「◯分、予定地点です」と鳴るか、遅れや電池の減り方を記録します。

@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ペース音声アプリ 試作</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&family=Barlow+Condensed:wght@600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#111827; --card:#1F2937; --line:#374151; --ink:#FFFFFF; --sub:#D1D5DB; --dim:#9CA3AF;
+  --accent:#C2410C; --accent2:#EA580C; --go:#15803D; --fast:#60A5FA; --slow:#FB923C; --ok:#4ADE80;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:'Noto Sans JP',system-ui,sans-serif;-webkit-tap-highlight-color:transparent}
+button,input{font-family:inherit}
+.num{font-family:'Barlow Condensed','Noto Sans JP',sans-serif;font-weight:700;letter-spacing:.01em}
+.wrap{max-width:480px;margin:0 auto;padding:16px 16px 32px;display:flex;flex-direction:column;gap:12px;min-height:100vh}
+.view{display:none;flex-direction:column;gap:12px}
+.view.on{display:flex}
+h1{margin:0;font-size:22px;font-weight:900}
+h2{margin:0;font-size:15px;font-weight:700}
+.eyebrow{margin:0;font-size:12px;font-weight:700;letter-spacing:.08em;color:#FDBA74}
+.sub{margin:0;font-size:13px;color:var(--sub);line-height:1.6}
+.small{font-size:12px;color:var(--sub)}
+.card{background:var(--card);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.pills{display:grid;gap:8px}
+.pills.c2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.pills.c3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.pills.c4{grid-template-columns:repeat(4,minmax(0,1fr))}
+.pill{min-height:46px;border:2px solid var(--line);background:transparent;color:var(--ink);border-radius:12px;font-size:14px;font-weight:700;cursor:pointer}
+.pill[aria-pressed="true"]{background:#FFFFFF;color:#111827;border-color:#FFFFFF}
+.row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.timeinputs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.tbox{display:flex;flex-direction:column;align-items:center;gap:2px}
+.tbox input,.kminput{width:100%;min-height:52px;border:2px solid var(--line);border-radius:12px;background:#0B1220;color:var(--ink);text-align:center;font-family:'Barlow Condensed',sans-serif;font-size:30px;font-weight:700}
+.tbox label{font-size:12px;color:var(--sub)}
+.kmrow{display:none;align-items:center;gap:8px}
+.kmrow.on{display:flex}
+.kmrow .kminput{flex:1}
+.step{width:46px;height:46px;flex-shrink:0;border-radius:23px;border:2px solid var(--line);background:transparent;color:var(--ink);font-size:22px;font-weight:700;cursor:pointer}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{font-size:11px;color:var(--sub);font-weight:700;text-align:left;padding:6px 4px;border-bottom:1px solid var(--line)}
+td{padding:7px 4px;border-bottom:1px solid #2B3544}
+td.r,th.r{text-align:right}
+.tablebox{max-height:280px;overflow:auto;border-radius:10px}
+.big{min-height:58px;border:none;border-radius:29px;font-size:18px;font-weight:900;color:#FFFFFF;background:var(--accent);cursor:pointer;letter-spacing:.04em}
+.big.go{background:var(--go)}
+.ghost{min-height:48px;border:2px solid var(--line);background:var(--card);color:var(--ink);border-radius:14px;font-size:15px;font-weight:700;cursor:pointer}
+.switch{flex-shrink:0;width:56px;height:32px;border:none;border-radius:16px;background:#6B7280;padding:3px;display:flex;justify-content:flex-start;cursor:pointer}
+.switch[aria-checked="true"]{background:var(--accent);justify-content:flex-end}
+.switch span{width:26px;height:26px;border-radius:13px;background:#fff}
+.note{font-size:12px;color:#FED7AA;background:#431407;border-radius:10px;padding:10px 12px;line-height:1.6;margin:0}
+/* run */
+.top{display:flex;justify-content:space-between;align-items:center}
+.chip{font-size:13px;font-weight:700;padding:6px 12px;border-radius:999px;background:var(--card)}
+.timebtn{border:none;background:transparent;color:var(--ink);cursor:pointer;display:flex;flex-direction:column;align-items:center;padding:0}
+.timebtn .lab{font-size:12px;color:var(--sub)}
+.timebtn .val{font-size:64px;line-height:1}
+.track{position:relative;height:12px;border-radius:6px;background:var(--line);margin:18px 6px 4px}
+.track .fill{position:absolute;left:0;top:0;bottom:0;border-radius:6px;background:var(--accent2)}
+.track .dot{position:absolute;top:50%;width:18px;height:18px;margin:-9px 0 0 -9px;border-radius:9px;background:#fff;border:4px solid var(--accent2)}
+.track .nextm{position:absolute;top:50%;width:16px;height:16px;margin:-8px 0 0 -8px;border-radius:8px;border:2px dashed #FDBA74}
+.track .plab{position:absolute;top:-18px;transform:translateX(-50%);font-size:11px;font-weight:700;white-space:nowrap}
+.ticks{display:flex;justify-content:space-between;font-size:10px;color:var(--dim);padding:0 2px}
+.gauge{position:relative;height:14px;border-radius:7px;overflow:hidden;display:flex;margin-top:4px}
+.gauge .l{flex:1;background:#1E3A8A}.gauge .r{flex:1;background:#7C2D12}
+.gwrap{position:relative}
+.gwrap .center{position:absolute;left:50%;top:-4px;bottom:-4px;width:2px;background:#fff;margin-left:-1px}
+.gwrap .needle{position:absolute;top:50%;width:20px;height:20px;margin:-10px 0 0 -10px;border-radius:10px;border:3px solid var(--bg);transition:left .3s}
+.glabels{display:flex;justify-content:space-between;font-size:11px;font-weight:700}
+.pass{flex-grow:1;min-height:150px;border:none;border-radius:22px;background:var(--accent);color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;cursor:pointer;user-select:none}
+.pass .km{font-size:56px;line-height:1}
+.pass .t{font-size:24px;font-weight:900}
+.recorded{flex-grow:1;min-height:150px;border-radius:22px;border:2px dashed #4B5563;background:var(--card);display:none;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:12px;text-align:center}
+.recorded.on{display:flex}
+.undo{min-height:44px;padding:0 20px;border:2px solid #9CA3AF;border-radius:22px;background:transparent;color:#fff;font-size:14px;font-weight:700;cursor:pointer}
+.hold{position:relative;overflow:hidden}
+.hold .bar{position:absolute;left:0;top:0;bottom:0;width:0;background:rgba(185,28,28,.35)}
+.hold span{position:relative}
+.stopbtn{min-height:44px;border:2px solid #7F1D1D;background:transparent;color:#FCA5A5;border-radius:14px;font-size:14px;font-weight:700;cursor:pointer}
+.diffbig{font-size:30px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<!-- 設定 -->
+<section id="v-setup" class="view on" aria-labelledby="t-setup">
+  <div>
+    <p class="eyebrow">PROTOTYPE v0.1</p>
+    <h1 id="t-setup">ペース音声 試作</h1>
+    <p class="sub">GPSは使わず、時間だけで「◯km予定地点です」と読み上げます。画面をつけたまま使ってください。</p>
+  </div>
+
+  <div class="card">
+    <h2>距離</h2>
+    <div class="pills c4" id="distPills"></div>
+    <div class="kmrow" id="kmRow">
+      <button class="step" type="button" id="kmDown" aria-label="1km減らす">−</button>
+      <input class="kminput" id="kmInput" type="number" inputmode="decimal" step="any" min="1" max="100" aria-label="距離（km）">
+      <span style="font-weight:700">km</span>
+      <button class="step" type="button" id="kmUp" aria-label="1km増やす">＋</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>目標タイム</h2>
+    <div class="timeinputs">
+      <div class="tbox"><input id="gh" type="number" inputmode="numeric" min="0" max="48"><label for="gh">時間</label></div>
+      <div class="tbox"><input id="gm" type="number" inputmode="numeric" min="0" max="59"><label for="gm">分</label></div>
+      <div class="tbox"><input id="gs" type="number" inputmode="numeric" min="0" max="59"><label for="gs">秒</label></div>
+    </div>
+    <div class="pills c4" id="quickPills"></div>
+    <div class="row"><span class="small">平均ペース</span><span><span class="num" style="font-size:26px" id="avgPace">-</span> /km</span></div>
+  </div>
+
+  <div class="card">
+    <h2>読み上げ</h2>
+    <div class="pills c2" id="intPills"></div>
+    <div class="row">
+      <div><div style="font-size:14px;font-weight:700">声で知らせる</div><div class="small">スマホの読み上げ機能を使います</div></div>
+      <button class="switch" type="button" role="switch" id="voiceSw" aria-checked="true" aria-label="声で知らせる"><span></span></button>
+    </div>
+    <button class="ghost" type="button" id="testVoice">声をテストする</button>
+  </div>
+
+  <div class="card">
+    <h2>テスト用の時間の速さ</h2>
+    <p class="small" style="margin:0">机の上で動きを確かめるとき用です。走るときは「実際の速さ」にしてください。</p>
+    <div class="pills c3" id="speedPills"></div>
+  </div>
+
+  <div class="card">
+    <h2>ペース配分（5kmごと）</h2>
+    <div class="pills c3" id="profPills"></div>
+    <p class="small" style="margin:0" id="profNote"></p>
+    <div class="tablebox"><table><thead><tr><th>区間</th><th style="text-align:center">ペース /km</th><th class="r">通過予定</th></tr></thead><tbody id="segBody"></tbody></table></div>
+    <div class="row" style="background:#0B1220;border-radius:12px;padding:10px 12px">
+      <div><div class="small">このプランのゴール</div><div class="num" style="font-size:28px" id="planGoal">-</div></div>
+      <span style="font-weight:700;font-size:13px" id="planDiff">-</span>
+    </div>
+    <button class="ghost" type="button" id="resetAdj">微調整をリセット</button>
+  </div>
+  <div class="card">
+    <h2>読み上げの予定</h2>
+    <div class="tablebox"><table><thead><tr><th>地点</th><th class="r">通過予定</th></tr></thead><tbody id="planBody"></tbody></table></div>
+  </div>
+
+  <button class="big" type="button" id="toReady">設定完了</button>
+</section>
+
+<!-- スタート待ち -->
+<section id="v-ready" class="view" aria-labelledby="t-ready">
+  <div class="top"><span class="chip" id="rChip">-</span><span class="small" id="rPace">-</span></div>
+  <div style="text-align:center"><div class="small">経過時間</div><div class="num" style="font-size:64px;line-height:1;color:var(--dim)">0:00:00</div></div>
+  <div class="card">
+    <div class="row"><span class="small">最初の読み上げ</span><span style="font-weight:700"><span id="rFirstKm">5</span>km予定地点 <span class="num" style="font-size:22px" id="rFirstT">-</span></span></div>
+  </div>
+  <div class="card">
+    <h2 id="t-ready">スタートの準備ができました</h2>
+    <ul class="sub" style="padding-left:18px;margin:0">
+      <li>号砲が鳴ったら「スタート」をタップ</li>
+      <li>スタートラインで押すとネットタイム基準</li>
+      <li>画面はつけたまま（この試作は画面が消えると止まることがあります）</li>
+    </ul>
+  </div>
+  <p class="note" id="savedNote" style="display:none;background:#14532D;color:#BBF7D0">設定を保存しました。当日このページを開くと、この画面から始まります（同じスマホ・同じブラウザで開いてください）。</p>
+  <button class="big go" type="button" id="startBtn" style="min-height:120px;font-size:40px;border-radius:24px">スタート</button>
+  <button class="ghost" type="button" id="backSetup">設定に戻る</button>
+</section>
+
+<!-- 走行中 -->
+<section id="v-run" class="view" aria-labelledby="t-run">
+  <h2 id="t-run" class="sr">走行中</h2>
+  <div class="top"><span class="chip" id="chip">-</span><span class="small" id="speedTag"></span></div>
+  <button class="timebtn" type="button" id="timeToggle" aria-label="経過時間と残り時間を切り替え">
+    <span class="lab" id="timeLab">経過時間 ⇄ タップで切替</span>
+    <span class="val num" id="timeVal">0:00:00</span>
+  </button>
+
+  <div class="card">
+    <div class="row"><span class="small">いまの予定位置</span><span style="font-size:13px;font-weight:700">次の読み上げ <span style="color:#FDBA74" id="nextKm">-</span> まで あと <span class="num" style="font-size:20px" id="nextLeft">-</span></span></div>
+    <div class="track" aria-hidden="true"><div class="fill" id="trFill"></div><div class="nextm" id="trNext"></div><div class="dot" id="trDot"></div><div class="plab" id="trLab"></div></div>
+    <div class="ticks" id="ticks" aria-hidden="true"></div>
+  </div>
+
+  <div class="card">
+    <div class="row"><span class="small" id="diffLab">予定との差（申告なし＝予定どおり）</span><span style="font-weight:900" id="diffTxt"><span class="num diffbig">±0:00</span></span></div>
+    <div class="gwrap" aria-hidden="true"><div class="gauge"><div class="l"></div><div class="r"></div></div><div class="center"></div><div class="needle" id="needle" style="left:50%;background:var(--ok)"></div></div>
+    <div class="glabels"><span style="color:#93C5FD">← 速い</span><span style="color:var(--sub);font-weight:400">予定どおり</span><span style="color:#FDBA74">遅い →</span></div>
+    <span style="font-size:13px;color:#86EFAC" id="advice">予定どおりなら何もしなくてOK。看板とずれたときだけ下のボタンで申告</span>
+  </div>
+
+  <div class="card" style="flex-direction:row;justify-content:space-between;align-items:baseline">
+    <span class="small">今の区間の目標ペース</span><span><span class="num" style="font-size:30px" id="paceNow">-</span> /km</span>
+  </div>
+
+  <button class="pass" type="button" id="passBtn">
+    <span style="display:flex;align-items:baseline;gap:6px"><span class="km num" id="passKm">5km</span><span class="t">に着いた</span></span>
+    <span style="font-size:12px" id="passPlan">予定 -</span>
+    <span style="font-size:12px;font-weight:700;color:#FFEDD5">遅れ・速すぎのときだけ押す ・ 予定どおりなら押さなくてOK</span>
+  </button>
+  <div class="pills c2" id="shiftRow">
+    <button class="ghost" type="button" id="prevPt">◀ 前の地点に戻す</button>
+    <button class="ghost" type="button" id="nextPt">次の地点に進める ▶</button>
+  </div>
+  <div class="recorded" id="recPanel" aria-live="polite">
+    <div style="font-size:20px;font-weight:900"><span style="color:var(--ok)">✓</span> <span id="recTxt">5km 記録しました</span></div>
+    <div class="small">ダブルタップ防止のため、あと<span id="lockLeft">1:00</span> はボタンを押せません</div>
+    <button class="undo" type="button" id="undoBtn">取り消す（あと<span id="undoLeft">8</span>秒）</button>
+  </div>
+
+  <button class="ghost hold" type="button" id="setBtn" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0"><div class="bar" id="setBar" style="background:rgba(255,255,255,.18)"></div><span style="font-size:16px;font-weight:900">設定を変更</span><span style="font-size:11px;color:var(--sub)">長押しで開く ・ 計測は止まりません</span></button>
+  <p class="note" id="wakeNote" style="display:none">この端末では画面の自動消灯を止められませんでした。画面が消えないよう、端末の設定で自動ロックの時間を長くしてください。</p>
+</section>
+
+<!-- レース中の設定変更 -->
+<section id="v-change" class="view" aria-labelledby="t-change">
+  <div class="top"><span class="chip" style="display:flex;align-items:center;gap:6px"><span style="width:10px;height:10px;border-radius:5px;background:var(--ok)"></span>計測中 タイマーは止まりません</span></div>
+  <div class="num" style="font-size:44px;line-height:1" id="cTime">0:00:00</div>
+  <h1 id="t-change">レース中の設定変更</h1>
+  <div class="card">
+    <h2>目標タイム</h2>
+    <div class="row">
+      <button class="step" type="button" id="cMinus" aria-label="目標を5分早める" style="width:84px;border-radius:12px;font-size:16px">−5分</button>
+      <span style="display:flex;flex-direction:column;align-items:center"><span class="num" style="font-size:40px" id="cGoal">-</span><span class="num" style="font-size:18px" id="cDelta">-</span></span>
+      <button class="step" type="button" id="cPlus" aria-label="目標を5分遅らせる" style="width:84px;border-radius:12px;font-size:16px">＋5分</button>
+    </div>
+    <p class="sub" id="cOrig" style="margin:0">-</p>
+    <p class="sub" id="cPreview">-</p>
+    <button class="big" type="button" id="cApply">この目標に変更する</button>
+  </div>
+  <p class="small" style="margin:0">距離と読み上げの間隔は、レース中は変更できません</p>
+  <button class="ghost" type="button" id="cBack">走行画面に戻る</button>
+  <button class="stopbtn hold" type="button" id="stopBtn" style="margin-top:12px"><div class="bar" id="stopBar"></div><span>長押しでレースを終了</span></button>
+  <span class="small" style="text-align:center">終了しても、そこまでの記録は残ります</span>
+</section>
+
+<!-- 結果 -->
+<section id="v-result" class="view" aria-labelledby="t-result">
+  <p class="eyebrow">RESULT</p>
+  <h1 id="t-result">計画と実際の比較</h1>
+  <div class="card" style="flex-direction:row;justify-content:space-between">
+    <div><div class="small">記録した時間</div><div class="num" style="font-size:36px" id="resTime">-</div></div>
+    <div style="text-align:right"><div class="small">最後の記録の差</div><div class="num" style="font-size:36px" id="resDiff">-</div></div>
+  </div>
+  <div class="card" id="resChg" style="display:none"></div>
+  <div class="card">
+    <table><thead><tr><th>地点</th><th class="r">予定</th><th class="r">実際</th><th class="r">差（申告）</th></tr></thead><tbody id="resBody"></tbody></table>
+  </div>
+  <button class="big" type="button" id="again">設定に戻る</button>
+</section>
+
+</div>
+
+<script>
+(function(){
+  var KEY='paceProtoV1';
+  var DISTS=[{id:'full',label:'フル',km:42.195,def:14400,quick:[['サブ3.5',12600],['サブ4',14400],['サブ4.5',16200],['サブ5',18000]]},
+             {id:'half',label:'ハーフ',km:21.0975,def:7200,quick:[['1:45',6300],['2:00',7200],['2:15',8100],['2:30',9000]]},
+             {id:'10k',label:'10km',km:10,def:3000,quick:[['45分',2700],['50分',3000],['55分',3300],['60分',3600]]},
+             {id:'custom',label:'その他',km:30,def:10800,quick:[]}];
+  var S={dist:'full',customKm:30,goal:14400,interval:5,speed:1,voice:true,profile:'even',adj:{}};
+  var R=null; // race
+  var showRemain=false, wakeLock=null, tickTimer=null;
+
+  function $(id){return document.getElementById(id);}
+  function load(){try{var v=JSON.parse(localStorage.getItem(KEY)||'null'); if(v){if(v.S)Object.assign(S,v.S); if(v.R&&!v.R.finished)R=v.R;}}catch(e){}}
+  function save(){try{localStorage.setItem(KEY,JSON.stringify({S:S,R:R}));}catch(e){} syncNative();}
+  // アプリの中で動くとき：読み上げはアプリ（画面が消えても動く部分）に任せる
+  var NATIVE=!!window.ReactNativeWebView, lastSync='';
+  function post(m){try{window.ReactNativeWebView.postMessage(JSON.stringify(m));}catch(e){}}
+  function annText(i){return i===R.edges.length-1?'ゴール予定時刻です。':kmLabel(R.edges[i])+'キロ予定地点です。'+(i===0?'看板とずれていたら、着いたときにボタンを押してください。':'');}
+  function syncNative(){if(!NATIVE)return;
+    var m={type:'schedule',running:false};
+    if(R&&!R.finished){m={type:'schedule',running:true,voice:!!S.voice,start:R.start,items:R.times.map(function(tt,i){return {ms:Math.round(tt/R.speed*1000),text:annText(i)};})};}
+    var j=JSON.stringify(m); if(j===lastSync)return; lastSync=j; post(m);}
+
+  function fmt(sec,forceH){sec=Math.round(Math.abs(sec));var h=Math.floor(sec/3600),m=Math.floor(sec%3600/60),s=sec%60;
+    var mm=(h>0||forceH)&&m<10?'0'+m:''+m, ss=s<10?'0'+s:''+s; return (h>0||forceH)?h+':'+mm+':'+ss:mm+':'+ss;}
+  function ja(sec){sec=Math.round(Math.abs(sec));var h=Math.floor(sec/3600),m=Math.floor(sec%3600/60),s=sec%60,o='';
+    if(h)o+=h+'時間'; if(m)o+=m+'分'; if(s||!o)o+=s+'秒'; return o;}
+  function mins(sec){var m=Math.round(sec/60); return (m>0?'＋':m<0?'−':'±')+Math.abs(m)+'分';}
+  function kmLabel(k){var r=Math.round(k*10)/10; return (r%1===0?r.toFixed(0):r.toFixed(1));}
+  function dist(){var d=DISTS.find(function(x){return x.id===S.dist;}); return d.id==='custom'?Object.assign({},d,{km:S.customKm}):d;}
+
+  function segPlan(){var km=dist().km, se=[];
+    for(var k=5;k<km-0.01;k+=5)se.push(k); se.push(km);
+    var n=se.length, lens=se.map(function(e,i){return e-(i?se[i-1]:0);});
+    var off=se.map(function(e,i){if(n<2||S.profile==='even')return 0; var t=i/(n-1); return S.profile==='neg'?8-16*t:-8+16*t;});
+    var wm=0; for(var i=0;i<n;i++)wm+=off[i]*lens[i]; wm/=km;
+    var base=S.goal/km, adj=S.adj||{};
+    var paces=off.map(function(o,i){return Math.max(120,base+o-wm+(adj[i]||0));});
+    var total=0; for(i=0;i<n;i++)total+=paces[i]*lens[i];
+    return {km:km,edges:se,lens:lens,paces:paces,total:total};}
+  function timeAtSeg(sp,k){var t=0,prev=0; for(var i=0;i<sp.edges.length;i++){ if(k<=sp.edges[i]+1e-9)return t+(k-prev)*sp.paces[i]; t+=sp.lens[i]*sp.paces[i]; prev=sp.edges[i]; } return t;}
+  function plan(){var d=dist(),km=d.km,edges=[], sp=segPlan();
+    for(var k=S.interval;k<km-0.01;k+=S.interval)edges.push(Math.round(k*1000)/1000);
+    edges.push(km); return {km:km,goal:sp.total,edges:edges,times:edges.map(function(e){return timeAtSeg(sp,e);}),seg:sp};}
+
+  /* ---------- 声 ---------- */
+  var jaVoice=null;
+  function pickVoice(){try{var vs=speechSynthesis.getVoices(); jaVoice=vs.find(function(v){return /ja/i.test(v.lang);})||null;}catch(e){}}
+  if('speechSynthesis' in window){pickVoice(); try{speechSynthesis.onvoiceschanged=pickVoice;}catch(e){}}
+  function say(t){if(!S.voice)return; if(NATIVE){post({type:'say',text:t});return;} if(!('speechSynthesis' in window))return;
+    try{speechSynthesis.cancel(); var u=new SpeechSynthesisUtterance(t); u.lang='ja-JP'; if(jaVoice)u.voice=jaVoice; u.rate=1.05; speechSynthesis.speak(u);}catch(e){}}
+  function buzz(p){try{if(navigator.vibrate)navigator.vibrate(p);}catch(e){}}
+
+  /* ---------- 設定画面 ---------- */
+  function pills(el,items,cur,onPick){el.innerHTML='';items.forEach(function(it){var b=document.createElement('button');b.type='button';b.className='pill';b.textContent=it.label;
+      b.setAttribute('aria-pressed',String(it.id===cur)); b.addEventListener('click',function(){onPick(it);}); el.appendChild(b);});}
+  function renderSetup(){
+    var d=dist();
+    pills($('distPills'),DISTS,S.dist,function(it){S.dist=it.id; S.adj={}; if(it.id!=='custom')S.goal=it.def; else S.goal=Math.round(S.goal/dist().km*S.customKm)||10800; save(); renderSetup();});
+    $('kmRow').classList.toggle('on',S.dist==='custom');
+    if(document.activeElement!==$('kmInput'))$('kmInput').value=S.customKm;
+    var g=S.goal; [['gh',Math.floor(g/3600)],['gm',Math.floor(g%3600/60)],['gs',g%60]].forEach(function(p){if(document.activeElement!==$(p[0]))$(p[0]).value=p[1];});
+    var qp=$('quickPills'); qp.style.display=d.quick.length?'grid':'none';
+    pills(qp,d.quick.map(function(q){return {id:q[1],label:q[0]};}),S.goal,function(it){S.goal=it.id; save(); renderSetup();});
+    pills($('intPills'),[{id:5,label:'5kmごと'},{id:1,label:'1kmごと'}],S.interval,function(it){S.interval=it.id; save(); renderSetup();});
+    pills($('speedPills'),[{id:1,label:'実際の速さ'},{id:10,label:'10倍速'},{id:60,label:'60倍速'}],S.speed,function(it){S.speed=it.id; save(); renderSetup();});
+    $('voiceSw').setAttribute('aria-checked',String(S.voice));
+    $('avgPace').textContent=fmt(S.goal/d.km);
+    pills($('profPills'),[{id:'even',label:'均等'},{id:'neg',label:'前半抑えめ'},{id:'pos',label:'前半貯金'}],S.profile,function(it){S.profile=it.id; save(); renderSetup();});
+    $('profNote').textContent={even:'全区間ほぼ同じペース。いちばんシンプルな作戦です。',neg:'前半を抑えて後半に上げる作戦。後半の失速が心配な人向け。',pos:'前半に貯金を作り、後半は少し落ちる前提の作戦。'}[S.profile];
+    var sp=segPlan(), sr='', cum=0;
+    sp.edges.forEach(function(e,i){cum+=sp.paces[i]*sp.lens[i]; var from=i?sp.edges[i-1]:0, short=sp.lens[i]<4.99;
+      var lab=(i===sp.edges.length-1&&short)?kmLabel(from)+'–G':kmLabel(from)+'–'+kmLabel(e);
+      sr+='<tr><td style="font-size:13px">'+lab+'</td><td style="text-align:center;white-space:nowrap"><button class="step" type="button" data-seg="'+i+'" data-d="-5" aria-label="'+lab+'を5秒速く" style="width:40px;height:40px;font-size:18px">−</button> <span class="num" style="font-size:20px;display:inline-block;min-width:44px">'+fmt(sp.paces[i])+'</span> <button class="step" type="button" data-seg="'+i+'" data-d="5" aria-label="'+lab+'を5秒遅く" style="width:40px;height:40px;font-size:18px">＋</button></td><td class="r num" style="font-size:18px">'+fmt(cum,cum>=3600)+'</td></tr>';});
+    $('segBody').innerHTML=sr;
+    $('planGoal').textContent=fmt(sp.total,true);
+    var df=Math.round(sp.total-S.goal);
+    $('planDiff').textContent=Math.abs(df)<1?'目標どおり':(df>0?'目標より '+fmt(df)+' 遅い':'目標より '+fmt(-df)+' 速い');
+    $('planDiff').style.color=Math.abs(df)<1?'#4ADE80':(df>0?'#FB923C':'#60A5FA');
+    var p=plan(),rows='';
+    p.edges.forEach(function(e,i){var last=i===p.edges.length-1; rows+='<tr><td>'+(last?'ゴール（'+kmLabel(e)+'km）':kmLabel(e)+'km')+'</td><td class="r num" style="font-size:18px">'+fmt(p.times[i],p.times[i]>=3600)+'</td></tr>';});
+    $('planBody').innerHTML=rows;
+  }
+  function readTime(){var h=+$('gh').value||0,m=+$('gm').value||0,s=+$('gs').value||0; S.goal=Math.max(60,Math.min(48*3600,h*3600+m*60+s)); save(); renderSetup();}
+  ['gh','gm','gs'].forEach(function(id){$(id).addEventListener('change',readTime);});
+  $('segBody').addEventListener('click',function(e){var b=e.target.closest('button[data-seg]'); if(!b)return; var i=+b.dataset.seg, d=+b.dataset.d; S.adj=S.adj||{}; S.adj[i]=(S.adj[i]||0)+d; save(); renderSetup();});
+  $('resetAdj').addEventListener('click',function(){S.adj={}; save(); renderSetup();});
+  $('kmInput').addEventListener('change',function(){var v=parseFloat($('kmInput').value); if(!isNaN(v)){var pace=S.goal/S.customKm; S.customKm=Math.max(1,Math.min(100,Math.round(v*10)/10)); S.goal=Math.round(pace*S.customKm); save(); renderSetup();}});
+  function stepKm(dv){S.adj={}; var pace=S.goal/S.customKm; S.customKm=Math.max(1,Math.min(100,Math.round((S.customKm+dv)*10)/10)); S.goal=Math.round(pace*S.customKm); save(); renderSetup();}
+  $('kmDown').addEventListener('click',function(){stepKm(-1);}); $('kmUp').addEventListener('click',function(){stepKm(1);});
+  $('voiceSw').addEventListener('click',function(){S.voice=!S.voice; save(); renderSetup();});
+  $('testVoice').addEventListener('click',function(){var keep=S.voice; S.voice=true; say('5キロ予定地点です。次の5キロも5分41秒で行きましょう。'); S.voice=keep;});
+
+  /* ---------- 画面切り替え ---------- */
+  function show(id){['v-setup','v-ready','v-run','v-change','v-result'].forEach(function(v){$(v).classList.toggle('on',v===id);}); window.scrollTo(0,0);}
+  function openReady(){var p=plan(); $('rChip').textContent=dist().label+' ・ 目標 '+fmt(S.goal,true);
+    $('rPace').textContent='平均 '+fmt(p.goal/p.km)+' /km'; $('rFirstKm').textContent=kmLabel(p.edges[0]); $('rFirstT').textContent=fmt(p.times[0],p.times[0]>=3600); show('v-ready');
+    try{speechSynthesis.getVoices();}catch(e){} }
+  $('toReady').addEventListener('click',function(){S.ready=true; S.savedAt=Date.now(); save(); openReady(); $('savedNote').style.display='block';});
+  $('backSetup').addEventListener('click',function(){S.ready=false; save(); show('v-setup'); renderSetup();});
+
+  /* ---------- レース ---------- */
+  function elapsed(){return R?(Date.now()-R.start)/1000*R.speed:0;}
+  function target(t){ // 今押すべき地点のindex
+    if(R.manual!=null&&!R.rec[R.manual])return R.manual;
+    var lr=lastRecorded(), off=(lr>=0&&(R.replanIdx==null||lr>R.replanIdx))?R.rec[lr].diff:0; // 直前の記録の遅れ・速さを見込んで切り替える
+    for(var i=0;i<R.edges.length;i++){ if(R.rec[i])continue;
+      var last=i===R.edges.length-1; if(last)return i;
+      var mid=(R.times[i]+R.times[i+1])/2+off; if(t<mid)return i; }
+    return R.edges.length-1;}
+  function shiftTarget(dir){if(!R)return; var cur=target(elapsed()), i=cur+dir;
+    while(i>=0&&i<R.edges.length&&R.rec[i])i+=dir;
+    if(i<0||i>=R.edges.length)return; R.manual=i; save(); buzz(30); tick();}
+  function lastRecorded(){var best=-1; for(var i=0;i<R.edges.length;i++)if(R.rec[i])best=i; return best;}
+  async function keepAwake(){if(NATIVE)return; try{if('wakeLock' in navigator){wakeLock=await navigator.wakeLock.request('screen'); $('wakeNote').style.display='none'; return;}}catch(e){} $('wakeNote').style.display='block';}
+  document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible'&&R&&!R.finished)keepAwake();});
+
+  $('startBtn').addEventListener('click',function(){var p=plan();
+    R={start:Date.now(),speed:S.speed,km:p.km,goal:p.goal,edges:p.edges,times:p.times,seg:p.seg,rec:{},said:{},lockUntil:0,lastTap:null,finished:false,label:dist().label,origGoal:p.goal,changes:[]};
+    save(); say('スタートしました。最初の読み上げは'+kmLabel(p.edges[0])+'キロ予定地点、'+ja(p.times[0])+'後です。'); buzz(80); keepAwake(); startRun();});
+  function startRun(){show('v-run'); buildTicks(); if(tickTimer)clearInterval(tickTimer); tickTimer=setInterval(tick,250); tick();}
+  function buildTicks(){var n=R.km>=20?[0,10,20,30,40]:[0,Math.round(R.km/4),Math.round(R.km/2),Math.round(R.km*3/4)];
+    n=n.filter(function(k){return k<R.km;}); $('ticks').innerHTML=n.map(function(k){return '<span>'+k+'</span>';}).join('')+'<span>G</span>';}
+
+  function tick(){if(!R)return; var t=elapsed(), now=Date.now();
+    // 読み上げ
+    for(var i=0;i<R.edges.length;i++){ if(!R.said[i]&&t>=R.times[i]){ R.said[i]=1; save();
+        if(t-R.times[i]<30*R.speed){ var last=i===R.edges.length-1;
+          if(!NATIVE)say(annText(i)); buzz([60,80,60]); } } }
+    // 時間
+    if(showRemain){$('timeLab').textContent='ゴール予定まで ⇄ タップで切替'; $('timeVal').textContent=(t>R.goal?'+':'')+fmt(R.goal-t,true);}
+    else{$('timeLab').textContent='経過時間 ⇄ タップで切替'; $('timeVal').textContent=fmt(t,true);}
+    var og=R.origGoal||R.goal; $('chip').textContent=R.label+' ・ 目標 '+fmt(R.goal,true)+(R.goal!==og?'（当初'+mins(R.goal-og)+'）':''); $('cTime').textContent=fmt(t,true);
+    $('speedTag').textContent=R.speed>1?('テスト：'+R.speed+'倍速'):'平均 '+fmt(R.goal/R.km)+' /km';
+    (function(){var sg=R.seg; if(!sg||R.replanIdx!=null){ var ni2=-1; for(var z=0;z<R.times.length;z++){if(R.times[z]>t){ni2=z;break;}} if(ni2<0)ni2=R.times.length-1; var pk2=(R.times[ni2]-(ni2?R.times[ni2-1]:0))/(R.edges[ni2]-(ni2?R.edges[ni2-1]:0)); $('paceNow').textContent=fmt(pk2); return; }
+      var tt=0, idx=sg.edges.length-1; for(var q=0;q<sg.edges.length;q++){tt+=sg.lens[q]*sg.paces[q]; if(t<tt){idx=q;break;}}
+      var cur=sg.paces[idx], nx=sg.paces[idx+1];
+      $('paceNow').textContent=fmt(cur)+(nx!=null&&Math.round(nx)!==Math.round(cur)?'  → 次 '+fmt(nx):'');})();
+    // 予定位置
+    var pk=Math.min(R.km,t/R.goal*R.km), pct=pk/R.km*100;
+    $('trFill').style.width=pct+'%'; $('trDot').style.left=pct+'%'; $('trLab').style.left=pct+'%'; $('trLab').textContent='予定 '+pk.toFixed(1)+'km';
+    var ni=-1; for(var j=0;j<R.times.length;j++){if(R.times[j]>t){ni=j;break;}}
+    if(ni>=0){$('nextKm').textContent=(ni===R.edges.length-1?'ゴール':kmLabel(R.edges[ni])+'km'); $('nextLeft').textContent=fmt(R.times[ni]-t); $('trNext').style.display='block'; $('trNext').style.left=(R.edges[ni]/R.km*100)+'%';}
+    else{$('nextKm').textContent='ゴール'; $('nextLeft').textContent='0:00'; $('trNext').style.display='none';}
+    // 通過ボタン / 記録直後
+    var locked=now<R.lockUntil;
+    $('passBtn').style.display=locked?'none':'flex'; $('shiftRow').style.display=locked?'none':'grid'; $('recPanel').classList.toggle('on',locked);
+    if(locked){ $('lockLeft').textContent=fmt((R.lockUntil-now)/1000);
+      var ul=R.lastTap?Math.ceil(8-(now-R.lastTap.at)/1000):0; $('undoBtn').style.display=ul>0?'inline-block':'none'; $('undoLeft').textContent=Math.max(0,ul); }
+    else{ var ti=target(t), last2=ti===R.edges.length-1; $('passKm').textContent=last2?'ゴール':kmLabel(R.edges[ti])+'km'; $('passKm').nextElementSibling.textContent=last2?'に到着':'に着いた';
+      $('passPlan').textContent='予定 '+fmt(R.times[ti],R.times[ti]>=3600)+''; }
+    // 差
+    var lr=lastRecorded();
+    if(lr>=0&&(R.replanIdx==null||lr>R.replanIdx)){var d=R.rec[lr].diff, slow=d>=1, fast=d<=-1, c=slow?'var(--slow)':(fast?'var(--fast)':'var(--ok)');
+      $('diffLab').textContent='予定との差（'+(lr===R.edges.length-1?'ゴール':kmLabel(R.edges[lr])+'km')+'で申告）';
+      $('diffTxt').innerHTML='<span class="num diffbig">'+(slow?'+':fast?'−':'±')+fmt(d)+'</span> '+(slow?'遅れ':fast?'速い':'予定どおり'); $('diffTxt').style.color=c;
+      var cl=Math.max(-120,Math.min(120,d)); $('needle').style.left=(50+cl/120*48)+'%'; $('needle').style.background=c;
+      $('advice').textContent=advice(lr,d); }
+    else{ // まだ記録がないときは初期状態に戻す
+      $('diffLab').textContent='予定との差（申告なし＝予定どおり）';
+      $('diffTxt').innerHTML='<span class="num diffbig">±0:00</span>'; $('diffTxt').style.color='var(--ink)';
+      $('needle').style.left='50%'; $('needle').style.background='var(--ok)';
+      $('advice').textContent='予定どおりなら何もしなくてOK。看板とずれたときだけ下のボタンで申告'; }
+  }
+  function advice(i,d){var rem=R.km-R.edges[i]; if(rem<=0.01)return 'お疲れさまでした';
+    var per=Math.abs(d)/rem; var s=Math.max(1,Math.round(per));
+    if(d>=1)return '残り'+kmLabel(rem)+'kmで、1kmあたり約'+s+'秒上げれば取り戻せます';
+    if(d<=-1)return '1kmあたり約'+s+'秒落としても大丈夫です';
+    return 'この調子でいきましょう';}
+  function adviceVoice(i,d){var rem=R.km-R.edges[i]; if(rem<=0.01)return ''; var s=Math.max(1,Math.round(Math.abs(d)/rem));
+    if(d>=1)return '1キロあたり'+s+'秒上げれば取り戻せます。'; if(d<=-1)return '1キロあたり'+s+'秒落としても大丈夫です。'; return '';}
+
+  $('passBtn').addEventListener('click',function(){if(!R)return; var t=elapsed(), now=Date.now(); if(now<R.lockUntil)return;
+    var i=target(t), d=t-R.times[i]; R.rec[i]={t:t,diff:d};
+    R.lockUntil=now+60000/R.speed; R.lastTap={i:i,at:now}; R.manual=null; save(); buzz(120);
+    var last=i===R.edges.length-1, where=last?'ゴール':kmLabel(R.edges[i])+'キロ';
+    var msg=where+'、'+(Math.abs(d)<1?'予定どおりです。':(ja(d)+(d>0?'遅れです。':'速いです。')))+adviceVoice(i,d);
+    $('recTxt').textContent=(last?'ゴール':kmLabel(R.edges[i])+'km')+' 記録しました';
+    say(msg); tick();
+    if(last)setTimeout(finish,2500);
+  });
+  $('undoBtn').addEventListener('click',function(){if(!R||!R.lastTap)return; delete R.rec[R.lastTap.i]; R.lockUntil=0; R.lastTap=null; R.manual=null; save(); say('取り消しました。'); tick();});
+  $('timeToggle').addEventListener('click',function(){showRemain=!showRemain; tick();});
+  $('prevPt').addEventListener('click',function(){shiftTarget(-1);});
+  $('nextPt').addEventListener('click',function(){shiftTarget(1);});
+
+  // 長押しで終了
+  var holdT=null, holdStart=0;
+  function holdable(btn,bar,ms,done){var t=null,st=0;
+    function end(){if(t)clearInterval(t); t=null; bar.style.width='0';}
+    btn.addEventListener('pointerdown',function(e){e.preventDefault(); st=Date.now(); end(); st=Date.now();
+      t=setInterval(function(){var p=Math.min(1,(Date.now()-st)/ms); bar.style.width=(p*100)+'%'; if(p>=1){end(); buzz(40); done();}},30);});
+    ['pointerup','pointerleave','pointercancel'].forEach(function(ev){btn.addEventListener(ev,end);});
+    btn.addEventListener('contextmenu',function(e){e.preventDefault();});}
+  holdable($('stopBtn'),$('stopBar'),2000,function(){finish();});
+  holdable($('setBtn'),$('setBar'),800,function(){openChange();});
+
+  /* ---------- レース中の目標変更 ---------- */
+  var pendingGoal=0;
+  function anchor(){ // 組み直しの起点：最後に申告した地点（なければ予定で過ぎた地点）
+    var t=elapsed(), lr=lastRecorded(), aKm=0, aT=0;
+    if(lr>=0&&(R.replanIdx==null||lr>R.replanIdx)){aKm=R.edges[lr]; aT=R.rec[lr].t;}
+    for(var i=0;i<R.edges.length;i++){ if(R.times[i]<=t&&R.edges[i]>aKm&&!R.rec[i]){ var off=(lr>=0&&(R.replanIdx==null||lr>R.replanIdx))?R.rec[lr].diff:0; if(R.edges[i]>aKm){aKm=R.edges[i]; aT=R.times[i]+off;} } }
+    return {km:aKm,t:aT};}
+  function replanTimes(goal){var a=anchor(), t=elapsed(), per=(goal-a.t)/(R.km-a.km);
+    return R.edges.map(function(e,i){return e>a.km?a.t+(e-a.km)*per:R.times[i];});}
+  function openChange(){pendingGoal=R.goal; show('v-change'); renderChange();}
+  function renderChange(){if(!R)return; $('cGoal').textContent=fmt(pendingGoal,true);
+    var og=R.origGoal||R.goal, d=pendingGoal-R.goal;
+    $('cDelta').textContent=d===0?'今の目標のまま':'今の目標から '+mins(d);
+    $('cDelta').style.color=d>0?'#FB923C':d<0?'#60A5FA':'#9CA3AF';
+    $('cOrig').textContent='当初の目標 '+fmt(og,true)+' ／ 変更すると当初から '+mins(pendingGoal-og); var t=elapsed(), nt=replanTimes(pendingGoal), ni=-1;
+    for(var i=0;i<nt.length;i++){if(nt[i]>t){ni=i;break;}}
+    var a=anchor(), per=(pendingGoal-a.t)/(R.km-a.km);
+    $('cPreview').textContent=(pendingGoal===R.goal?'今の目標です。':'')+(ni>=0?'次は'+(ni===R.edges.length-1?'ゴール':kmLabel(R.edges[ni])+'km予定地点')+' '+fmt(nt[ni],nt[ni]>=3600)+'（この先のペース '+(per>0?fmt(per):'-')+' /km）':'');
+    $('cApply').disabled=pendingGoal===R.goal; $('cApply').style.opacity=pendingGoal===R.goal?.4:1;}
+  $('cMinus').addEventListener('click',function(){var a=anchor(); pendingGoal=Math.max(Math.ceil(a.t+(R.km-a.km)*120),pendingGoal-300); renderChange();});
+  $('cPlus').addEventListener('click',function(){pendingGoal=Math.min(48*3600,pendingGoal+300); renderChange();});
+  $('cApply').addEventListener('click',function(){if(pendingGoal===R.goal)return; var t=elapsed();
+    R.times=replanTimes(pendingGoal);
+    if(!R.changes)R.changes=[]; if(!R.origGoal)R.origGoal=R.goal;
+    var ci=-1; for(var j=0;j<R.times.length;j++)if(R.times[j]<=t)ci=j;
+    R.changes.push({t:t,from:R.goal,to:pendingGoal,km:ci>=0?R.edges[ci]:0});
+    var dd=pendingGoal-R.goal; R.goal=pendingGoal; R.replanIdx=lastRecorded();
+    for(var i=0;i<R.times.length;i++){ if(R.times[i]<=t)R.said[i]=1; else delete R.said[i]; }
+    save(); say('目標を'+Math.abs(Math.round(dd/60))+'分'+(dd>0?'遅らせて':'早めて')+'、'+ja(R.goal)+'にしました。'); show('v-run'); tick();});
+  $('cBack').addEventListener('click',function(){show('v-run'); tick();});
+
+  function finish(){if(!R)return; R.finished=true; R.endT=elapsed(); save(); if(tickTimer)clearInterval(tickTimer);
+    try{if(wakeLock)wakeLock.release();}catch(e){}
+    var rows='', lastD=null;
+    R.edges.forEach(function(e,i){var r=R.rec[i], last=i===R.edges.length-1;
+      if(r)lastD=r.diff;
+      var dc=r?(r.diff>=1?'#FB923C':r.diff<=-1?'#60A5FA':'#4ADE80'):'#9CA3AF';
+      rows+='<tr><td>'+(last?'ゴール':kmLabel(e)+'km')+'</td><td class="r num" style="font-size:17px;color:#D1D5DB">'+fmt(R.times[i],R.times[i]>=3600)+'</td><td class="r num" style="font-size:17px">'+(r?fmt(r.t,r.t>=3600):'-')+'</td><td class="r num" style="font-size:17px;color:'+dc+'">'+(r?((r.diff>=1?'+':r.diff<=-1?'−':'±')+fmt(r.diff)):'申告なし')+'</td></tr>';});
+    var og=R.origGoal||R.goal, ch=R.changes||[];
+    if(ch.length){var h='<h2>目標の変更</h2><p class="sub" style="margin:0">当初 '+fmt(og,true)+' → 最終 '+fmt(R.goal,true)+'（<b style="color:'+(R.goal>og?'#FB923C':'#60A5FA')+'">'+mins(R.goal-og)+'</b>）</p>';
+      ch.forEach(function(c){h+='<p class="small" style="margin:0">'+fmt(c.t,true)+'（'+(c.km?kmLabel(c.km)+'km予定地点のあと':'スタート直後')+'）'+fmt(c.from,true)+' → '+fmt(c.to,true)+'（'+mins(c.to-c.from)+'）</p>';});
+      h+='<p class="small" style="margin:0">下の表の「予定」は、変更したあとの予定です</p>';
+      $('resChg').innerHTML=h; $('resChg').style.display='flex';} else {$('resChg').style.display='none';}
+    $('resBody').innerHTML=rows; $('resTime').textContent=fmt(R.endT,true);
+    $('resDiff').textContent=lastD===null?'-':((lastD>=1?'+':lastD<=-1?'−':'±')+fmt(lastD));
+    say('レースを終了しました。おつかれさまでした。'); show('v-result');}
+  $('again').addEventListener('click',function(){R=null; showRemain=false; S.ready=false; save(); show('v-setup'); renderSetup();});
+
+  load(); renderSetup(); syncNative();
+  if(R){ startRun(); }
+  else if(S.ready){ openReady(); var dt=new Date(S.savedAt||Date.now()); $('savedNote').style.display='block'; $('savedNote').textContent='保存した設定（'+(dt.getMonth()+1)+'/'+dt.getDate()+' '+dt.getHours()+':'+('0'+dt.getMinutes()).slice(-2)+'）で待機しています。内容を変えるときは「設定に戻る」から。'; }
+})();
+</script>
+</body>
+</html>

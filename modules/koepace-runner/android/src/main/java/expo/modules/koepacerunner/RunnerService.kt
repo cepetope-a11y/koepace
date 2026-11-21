@@ -8,24 +8,18 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
-import android.media.AudioAttributes
-import android.media.AudioFocusRequest
-import android.media.AudioManager
 import android.os.BatteryManager
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.os.PowerManager
-import android.speech.tts.TextToSpeech
-import android.speech.tts.UtteranceProgressListener
-import java.util.Locale
 
 /**
  * 画面が消えていても、予定時刻に読み上げるための常駐サービス。
  * - 「計測中」の通知を出して、Androidに止められないようにする（カーナビと同じ仕組み）
  * - 時計はこのサービスが自分で持つ（アプリの画面側のタイマーには頼らない）
- * - 読み上げる数秒だけ、音楽アプリに音量を下げてもらう（音楽は止めない）
+ * - 予定はいつでも差し替えられる（目標の変更など）。読み上げ済みのものは繰り返さない
  */
 class RunnerService : Service() {
 
@@ -38,6 +32,7 @@ class RunnerService : Service() {
 
     private const val CHANNEL_ID = "koepace_run"
     private const val NOTIFICATION_ID = 4521
+    private const val STALE_MS = 60_000L
 
     @Volatile var running = false
     @Volatile var startAt = 0L
@@ -57,22 +52,13 @@ class RunnerService : Service() {
   }
 
   private val handler = Handler(Looper.getMainLooper())
-  private var tts: TextToSpeech? = null
-  private var ttsReady = false
-  private val pendingSpeech = mutableListOf<Pair<String, String>>()
+  private var speaker: Speaker? = null
   private var wakeLock: PowerManager.WakeLock? = null
-  private var audioManager: AudioManager? = null
-  private var focusRequest: AudioFocusRequest? = null
-  private var speaking = 0
 
   private var offsets = LongArray(0)
   private var texts = arrayOf<String>()
   private var index = 0
-
-  private val speechAttrs: AudioAttributes = AudioAttributes.Builder()
-    .setUsage(AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)
-    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-    .build()
+  private val fired = HashSet<String>()
 
   private val fire = object : Runnable {
     override fun run() {
@@ -84,11 +70,11 @@ class RunnerService : Service() {
         handler.postDelayed(this, target - now)
         return
       }
-      val no = index + 1
-      val focus = speak(texts[index], "p$no")
+      val focus = speaker?.speak(texts[index]) ?: false
+      fired.add(key(offsets[index], texts[index]))
       addLog(
         mapOf(
-          "no" to no,
+          "no" to (snapshotLog().size + 1),
           "plannedMs" to offsets[index].toDouble(),
           "actualMs" to (now - startAt).toDouble(),
           "battery" to batteryLevel(this@RunnerService),
@@ -100,12 +86,9 @@ class RunnerService : Service() {
     }
   }
 
-  override fun onBind(intent: Intent?): IBinder? = null
+  private fun key(offset: Long, text: String) = "$offset|$text"
 
-  override fun onCreate() {
-    super.onCreate()
-    audioManager = getSystemService(Context.AUDIO_SERVICE) as? AudioManager
-  }
+  override fun onBind(intent: Intent?): IBinder? = null
 
   override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
     if (intent?.action == ACTION_STOP) {
@@ -113,7 +96,6 @@ class RunnerService : Service() {
       return START_NOT_STICKY
     }
     if (intent?.action != ACTION_START) {
-      // 想定外の起動（システムによる再起動など）は何もしないで終わる
       if (!running) stopSelf()
       return START_NOT_STICKY
     }
@@ -121,18 +103,32 @@ class RunnerService : Service() {
     // まず通知を出す（startForegroundService から5秒以内に必要）
     showForeground()
 
-    handler.removeCallbacks(fire)
-    clearLog()
-    startAt = intent.getLongExtra(EXTRA_START_AT, System.currentTimeMillis())
-    offsets = intent.getLongArrayExtra(EXTRA_OFFSETS) ?: LongArray(0)
-    texts = intent.getStringArrayExtra(EXTRA_TEXTS) ?: arrayOf()
-    if (texts.size < offsets.size) offsets = offsets.copyOf(texts.size)
-    index = 0
+    val newStart = intent.getLongExtra(EXTRA_START_AT, System.currentTimeMillis())
+    val newOffsets = intent.getLongArrayExtra(EXTRA_OFFSETS) ?: LongArray(0)
+    val newTexts = intent.getStringArrayExtra(EXTRA_TEXTS) ?: arrayOf()
+
+    if (!running || newStart != startAt) {
+      // 新しいレース
+      fired.clear()
+      clearLog()
+    }
+    startAt = newStart
     running = true
 
+    // 読み上げ済み・1分以上前に過ぎたものを除いて、時刻順に並べる
+    val now = System.currentTimeMillis()
+    val pairs = newOffsets.indices
+      .filter { it < newTexts.size }
+      .map { Pair(newOffsets[it], newTexts[it]) }
+      .filter { !fired.contains(key(it.first, it.second)) && now - (startAt + it.first) < STALE_MS }
+      .sortedBy { it.first }
+    offsets = pairs.map { it.first }.toLongArray()
+    texts = pairs.map { it.second }.toTypedArray()
+    index = 0
+
     acquireWakeLock()
-    initTts()
-    speak("計測を始めました。画面を消して、ポケットに入れてください。", "start")
+    if (speaker == null) speaker = Speaker(this)
+    handler.removeCallbacks(fire)
     scheduleNext()
     return START_NOT_STICKY
   }
@@ -190,81 +186,10 @@ class RunnerService : Service() {
     }
   }
 
-  private fun initTts() {
-    if (tts != null) return
-    tts = TextToSpeech(applicationContext) { status ->
-      if (status == TextToSpeech.SUCCESS) {
-        tts?.setLanguage(Locale.JAPANESE)
-        tts?.setAudioAttributes(speechAttrs)
-        tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-          override fun onStart(utteranceId: String?) {}
-          override fun onDone(utteranceId: String?) { handler.post { finishedOne() } }
-          @Deprecated("Deprecated in Java")
-          override fun onError(utteranceId: String?) { handler.post { finishedOne() } }
-          override fun onError(utteranceId: String?, errorCode: Int) { handler.post { finishedOne() } }
-        })
-        ttsReady = true
-        val queued = pendingSpeech.toList()
-        pendingSpeech.clear()
-        queued.forEach { (text, id) -> speakNow(text, id) }
-      }
-    }
-  }
-
-  /** 読み上げる。音楽アプリに音量を下げてもらえたら true */
-  private fun speak(text: String, id: String): Boolean {
-    if (!ttsReady) {
-      pendingSpeech.add(text to id)
-      return requestFocusOnly()
-    }
-    return speakNow(text, id)
-  }
-
-  private fun speakNow(text: String, id: String): Boolean {
-    val granted = requestFocusOnly()
-    speaking += 1
-    tts?.speak(text, TextToSpeech.QUEUE_ADD, null, id)
-    return granted
-  }
-
-  private fun requestFocusOnly(): Boolean {
-    val am = audioManager ?: return false
-    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-      val req = focusRequest ?: AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
-        .setAudioAttributes(speechAttrs)
-        .setOnAudioFocusChangeListener { }
-        .build()
-        .also { focusRequest = it }
-      am.requestAudioFocus(req) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
-    } else {
-      @Suppress("DEPRECATION")
-      am.requestAudioFocus(null, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK) ==
-        AudioManager.AUDIOFOCUS_REQUEST_GRANTED
-    }
-  }
-
-  private fun finishedOne() {
-    speaking = (speaking - 1).coerceAtLeast(0)
-    if (speaking == 0) abandonFocus()
-  }
-
-  private fun abandonFocus() {
-    val am = audioManager ?: return
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-      focusRequest?.let { am.abandonAudioFocusRequest(it) }
-    } else {
-      @Suppress("DEPRECATION")
-      am.abandonAudioFocus(null)
-    }
-  }
-
   private fun stopRun() {
     running = false
     handler.removeCallbacks(fire)
-    pendingSpeech.clear()
-    try { tts?.stop() } catch (e: Exception) {}
-    speaking = 0
-    abandonFocus()
+    speaker?.stop()
     if (wakeLock?.isHeld == true) wakeLock?.release()
     wakeLock = null
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
@@ -279,10 +204,8 @@ class RunnerService : Service() {
   override fun onDestroy() {
     running = false
     handler.removeCallbacks(fire)
-    try { tts?.shutdown() } catch (e: Exception) {}
-    tts = null
-    ttsReady = false
-    abandonFocus()
+    speaker?.shutdown()
+    speaker = null
     if (wakeLock?.isHeld == true) wakeLock?.release()
     wakeLock = null
     super.onDestroy()

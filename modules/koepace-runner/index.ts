@@ -11,6 +11,9 @@ export type RunnerLogItem = {
 type RunnerModule = {
   start(startAtMs: number, offsetsMs: number[], texts: string[]): void;
   stop(): void;
+  speak(text: string): void;
+  isIgnoringBatteryOptimizations(): boolean;
+  openBatterySettings(): void;
   isRunning(): boolean;
   getStartAt(): number;
   getLog(): RunnerLogItem[];

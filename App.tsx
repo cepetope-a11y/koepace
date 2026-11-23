@@ -12,6 +12,7 @@ type ScheduleMsg = {
   type: 'schedule';
   running: boolean;
   voice?: boolean;
+  lock?: boolean;
   start?: number;
   items?: { ms: number; text: string }[];
 };
@@ -49,6 +50,7 @@ function Main() {
       if (m.type === 'say') {
         Runner.speak(m.text);
       } else if (m.type === 'schedule') {
+        Runner.setShowWhenLocked(!!(m.running && m.lock));
         if (m.running && m.voice && m.start && m.items) {
           if (!asked.current) {
             asked.current = true;

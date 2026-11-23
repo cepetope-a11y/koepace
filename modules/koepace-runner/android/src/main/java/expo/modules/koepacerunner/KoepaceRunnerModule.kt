@@ -8,6 +8,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
 import android.provider.Settings
+import android.view.WindowManager
 import expo.modules.kotlin.exception.Exceptions
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
@@ -51,6 +52,27 @@ class KoepaceRunnerModule : Module() {
       main.post {
         val sp = speaker ?: Speaker(ctx).also { speaker = it }
         sp.speak(text)
+      }
+      Unit
+    }
+
+    // 走行中、ロックを解除しなくてもこの画面を出す（カメラやカーナビと同じ）
+    Function("setShowWhenLocked") { on: Boolean ->
+      val act = appContext.currentActivity
+      if (act != null) {
+        act.runOnUiThread {
+          if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+            act.setShowWhenLocked(on)
+          } else {
+            @Suppress("DEPRECATION")
+            val flag = WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
+            if (on) {
+              act.window.addFlags(flag)
+            } else {
+              act.window.clearFlags(flag)
+            }
+          }
+        }
       }
       Unit
     }

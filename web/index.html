@@ -126,6 +126,14 @@ td.r,th.r{text-align:right}
     <button class="ghost" type="button" id="testVoice">声をテストする</button>
   </div>
 
+  <div class="card" id="lockCard" style="display:none">
+    <h2>走行中の画面</h2>
+    <div class="row">
+      <div><div style="font-size:14px;font-weight:700">ロック画面の上に表示</div><div class="small">電源ボタンを押すと、ロックを解除せずに走行画面が出て、すぐボタンを押せます</div></div>
+      <button class="switch" type="button" role="switch" id="lockSw" aria-checked="true" aria-label="ロック画面の上に表示"><span></span></button>
+    </div>
+  </div>
+
   <div class="card">
     <h2>テスト用の時間の速さ</h2>
     <p class="small" style="margin:0">机の上で動きを確かめるとき用です。走るときは「実際の速さ」にしてください。</p>
@@ -262,7 +270,7 @@ td.r,th.r{text-align:right}
              {id:'half',label:'ハーフ',km:21.0975,def:7200,quick:[['1:45',6300],['2:00',7200],['2:15',8100],['2:30',9000]]},
              {id:'10k',label:'10km',km:10,def:3000,quick:[['45分',2700],['50分',3000],['55分',3300],['60分',3600]]},
              {id:'custom',label:'その他',km:30,def:10800,quick:[]}];
-  var S={dist:'full',customKm:30,goal:14400,interval:5,speed:1,voice:true,profile:'even',adj:{}};
+  var S={dist:'full',customKm:30,goal:14400,interval:5,speed:1,voice:true,lock:true,profile:'even',adj:{}};
   var R=null; // race
   var showRemain=false, wakeLock=null, tickTimer=null;
 
@@ -275,7 +283,7 @@ td.r,th.r{text-align:right}
   function annText(i){return i===R.edges.length-1?'ゴール予定時刻です。':kmLabel(R.edges[i])+'キロ予定地点です。'+(i===0?'看板とずれていたら、着いたときにボタンを押してください。':'');}
   function syncNative(){if(!NATIVE)return;
     var m={type:'schedule',running:false};
-    if(R&&!R.finished){m={type:'schedule',running:true,voice:!!S.voice,start:R.start,items:R.times.map(function(tt,i){return {ms:Math.round(tt/R.speed*1000),text:annText(i)};})};}
+    if(R&&!R.finished){m={type:'schedule',running:true,voice:!!S.voice,lock:S.lock!==false,start:R.start,items:R.times.map(function(tt,i){return {ms:Math.round(tt/R.speed*1000),text:annText(i)};})};}
     var j=JSON.stringify(m); if(j===lastSync)return; lastSync=j; post(m);}
 
   function fmt(sec,forceH){sec=Math.round(Math.abs(sec));var h=Math.floor(sec/3600),m=Math.floor(sec%3600/60),s=sec%60;
@@ -322,6 +330,7 @@ td.r,th.r{text-align:right}
     pills($('intPills'),[{id:5,label:'5kmごと'},{id:1,label:'1kmごと'}],S.interval,function(it){S.interval=it.id; save(); renderSetup();});
     pills($('speedPills'),[{id:1,label:'実際の速さ'},{id:10,label:'10倍速'},{id:60,label:'60倍速'}],S.speed,function(it){S.speed=it.id; save(); renderSetup();});
     $('voiceSw').setAttribute('aria-checked',String(S.voice));
+    $('lockSw').setAttribute('aria-checked',String(S.lock!==false));
     $('avgPace').textContent=fmt(S.goal/d.km);
     pills($('profPills'),[{id:'even',label:'均等'},{id:'neg',label:'前半抑えめ'},{id:'pos',label:'前半貯金'}],S.profile,function(it){S.profile=it.id; save(); renderSetup();});
     $('profNote').textContent={even:'全区間ほぼ同じペース。いちばんシンプルな作戦です。',neg:'前半を抑えて後半に上げる作戦。後半の失速が心配な人向け。',pos:'前半に貯金を作り、後半は少し落ちる前提の作戦。'}[S.profile];
@@ -346,6 +355,7 @@ td.r,th.r{text-align:right}
   function stepKm(dv){S.adj={}; var pace=S.goal/S.customKm; S.customKm=Math.max(1,Math.min(100,Math.round((S.customKm+dv)*10)/10)); S.goal=Math.round(pace*S.customKm); save(); renderSetup();}
   $('kmDown').addEventListener('click',function(){stepKm(-1);}); $('kmUp').addEventListener('click',function(){stepKm(1);});
   $('voiceSw').addEventListener('click',function(){S.voice=!S.voice; save(); renderSetup();});
+  $('lockSw').addEventListener('click',function(){S.lock=S.lock===false; save(); renderSetup();});
   $('testVoice').addEventListener('click',function(){var keep=S.voice; S.voice=true; say('5キロ予定地点です。次の5キロも5分41秒で行きましょう。'); S.voice=keep;});
 
   /* ---------- 画面切り替え ---------- */
@@ -500,6 +510,7 @@ td.r,th.r{text-align:right}
     say('レースを終了しました。おつかれさまでした。'); show('v-result');}
   $('again').addEventListener('click',function(){R=null; showRemain=false; S.ready=false; save(); show('v-setup'); renderSetup();});
 
+  if(NATIVE)$('lockCard').style.display='flex';
   load(); renderSetup(); syncNative();
   if(R){ startRun(); }
   else if(S.ready){ openReady(); var dt=new Date(S.savedAt||Date.now()); $('savedNote').style.display='block'; $('savedNote').textContent='保存した設定（'+(dt.getMonth()+1)+'/'+dt.getDate()+' '+dt.getHours()+':'+('0'+dt.getMinutes()).slice(-2)+'）で待機しています。内容を変えるときは「設定に戻る」から。'; }

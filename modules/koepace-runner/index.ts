@@ -12,6 +12,7 @@ type RunnerModule = {
   start(startAtMs: number, offsetsMs: number[], texts: string[]): void;
   stop(): void;
   speak(text: string): void;
+  setShowWhenLocked(on: boolean): void;
   isIgnoringBatteryOptimizations(): boolean;
   openBatterySettings(): void;
   isRunning(): boolean;

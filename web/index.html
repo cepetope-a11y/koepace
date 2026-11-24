@@ -249,7 +249,7 @@ td.r,th.r{text-align:right}
   </div>
   <p class="small" style="margin:0">距離と読み上げの間隔は、レース中は変更できません</p>
   <button class="ghost" type="button" id="cBack">走行画面に戻る</button>
-  <button class="ghost" type="button" id="pauseBtn" style="margin-top:12px">一時停止（練習用）</button>
+  <button class="ghost" type="button" id="pauseBtn" style="margin-top:12px">一時停止</button>
   <span class="small" style="text-align:center" id="pauseHint">止めている間は時間が進みません。再開すると、止めた分だけ予定がうしろにずれます</span>
   <button class="stopbtn hold" type="button" id="stopBtn" style="margin-top:12px"><div class="bar" id="stopBar"></div><span>長押しでレースを終了</span></button>
   <span class="small" style="text-align:center">終了しても、そこまでの記録は残ります</span>
@@ -526,7 +526,7 @@ td.r,th.r{text-align:right}
     var dd=pendingGoal-R.goal; R.goal=pendingGoal; R.replanIdx=lastRecorded();
     for(var i=0;i<R.times.length;i++){ if(R.times[i]<=t)R.said[i]=1; else delete R.said[i]; }
     save(); say('目標を'+Math.abs(Math.round(dd/60))+'分'+(dd>0?'遅らせて':'早めて')+'、'+ja(R.goal)+'にしました。'); show('v-run'); tick();});
-  function renderPause(){if(!R)return; $('pauseBtn').textContent=R.pausedAt?'再開する':'一時停止（練習用）';}
+  function renderPause(){if(!R)return; $('pauseBtn').textContent=R.pausedAt?'再開する':'一時停止';}
   $('pauseBtn').addEventListener('click',function(){if(!R||R.finished)return; var now=Date.now();
     if(R.pausedAt){ var dt=now-R.pausedAt; R.start+=dt; if(R.lockUntil>R.pausedAt)R.lockUntil+=dt; delete R.pausedAt; R.pauses=(R.pauses||0)+dt; save(); say('再開しました。'); show('v-run'); tick(); }
     else{ R.pausedAt=now; save(); say('一時停止しました。'); renderPause(); }});

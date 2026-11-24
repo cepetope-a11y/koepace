@@ -21,7 +21,7 @@ class KoepaceRunnerModule : Module() {
     Name("KoepaceRunner")
 
     // 予定時刻の一覧を渡して、裏で読み上げを始める（走行中に呼べば予定を差し替える）
-    Function("start") { startAtMs: Double, offsetsMs: List<Double>, texts: List<String>, titles: List<String>, bodies: List<String>, voice: Boolean, notify: Boolean ->
+    Function("start") { startAtMs: Double, offsetsMs: List<Double>, texts: List<String>, titles: List<String>, bodies: List<String>, voice: Boolean, notify: Boolean, raceId: Double, points: List<Int> ->
       val intent = Intent(context, RunnerService::class.java).apply {
         action = RunnerService.ACTION_START
         putExtra(RunnerService.EXTRA_START_AT, startAtMs.toLong())
@@ -31,6 +31,8 @@ class KoepaceRunnerModule : Module() {
         putExtra(RunnerService.EXTRA_BODIES, bodies.toTypedArray())
         putExtra(RunnerService.EXTRA_VOICE, voice)
         putExtra(RunnerService.EXTRA_NOTIFY, notify)
+        putExtra(RunnerService.EXTRA_RACE, raceId.toLong())
+        putExtra(RunnerService.EXTRA_POINTS, points.toIntArray())
       }
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
         context.startForegroundService(intent)
@@ -88,7 +90,7 @@ class KoepaceRunnerModule : Module() {
     Function("getLog") { RunnerService.snapshotLog() }
 
     // ウォッチの通知の「着いた」で押された時刻（取り出すと空になる）
-    Function("takeArrivals") { RunnerService.takeArrivals().map { it.toDouble() } }
+    Function("takeArrivals") { RunnerService.takeArrivals().map { listOf(it.first.toDouble(), it.second.toDouble()) } }
 
     Function("getBattery") { RunnerService.batteryLevel(context) }
 

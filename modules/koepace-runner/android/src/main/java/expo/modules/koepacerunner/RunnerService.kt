@@ -33,6 +33,9 @@ class RunnerService : Service() {
     const val EXTRA_BODIES = "bodies"
     const val EXTRA_VOICE = "voice"
     const val EXTRA_NOTIFY = "notify"
+    const val EXTRA_RACE = "race"
+    const val EXTRA_POINTS = "points"
+    const val EXTRA_POINT = "point"
     const val ACTION_ARRIVED = "expo.modules.koepacerunner.ARRIVED"
 
     private const val CHANNEL_ID = "koepace_run"
@@ -52,11 +55,14 @@ class RunnerService : Service() {
 
     private fun clearLog() = synchronized(log) { log.clear() }
 
-    private val arrivals = mutableListOf<Long>()
+    // 押された時刻と、どの予定地点の通知から押されたか
+    private val arrivals = mutableListOf<Pair<Long, Int>>()
 
-    fun takeArrivals(): List<Long> = synchronized(arrivals) { val l = arrivals.toList(); arrivals.clear(); l }
+    fun takeArrivals(): List<Pair<Long, Int>> = synchronized(arrivals) { val l = arrivals.toList(); arrivals.clear(); l }
 
-    private fun addArrival(at: Long) = synchronized(arrivals) { arrivals.add(at) }
+    private fun addArrival(at: Long, point: Int) = synchronized(arrivals) { arrivals.add(Pair(at, point)) }
+
+    @Volatile var raceId = 0L
 
     fun batteryLevel(context: Context): Int {
       val bm = context.getSystemService(Context.BATTERY_SERVICE) as? BatteryManager
@@ -72,6 +78,7 @@ class RunnerService : Service() {
   private var texts = arrayOf<String>()
   private var titles = arrayOf<String>()
   private var bodies = arrayOf<String>()
+  private var points = IntArray(0)
   private var voiceOn = true
   private var notifyOn = true
   private var lastArrivalAt = 0L
@@ -89,7 +96,7 @@ class RunnerService : Service() {
         return
       }
       val focus = if (voiceOn) (speaker?.speak(texts[index]) ?: false) else true
-      if (notifyOn) postPoint(titles.getOrElse(index) { texts[index] }, bodies.getOrElse(index) { "" })
+      if (notifyOn) postPoint(titles.getOrElse(index) { texts[index] }, bodies.getOrElse(index) { "" }, points.getOrElse(index) { -1 })
       fired.add(key(offsets[index], texts[index]))
       addLog(
         mapOf(
@@ -115,7 +122,7 @@ class RunnerService : Service() {
       val now = System.currentTimeMillis()
       if (running && now - lastArrivalAt > 60_000L) {
         lastArrivalAt = now
-        addArrival(now)
+        addArrival(now, intent.getIntExtra(EXTRA_POINT, -1))
         if (voiceOn) speaker?.speak("着いたことを記録しました。")
         val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         nm.cancel(POINT_NOTIFICATION_ID)
@@ -135,6 +142,8 @@ class RunnerService : Service() {
     showForeground()
 
     val newStart = intent.getLongExtra(EXTRA_START_AT, System.currentTimeMillis())
+    val newRace = intent.getLongExtra(EXTRA_RACE, newStart)
+    val newPoints = intent.getIntArrayExtra(EXTRA_POINTS) ?: IntArray(0)
     val newOffsets = intent.getLongArrayExtra(EXTRA_OFFSETS) ?: LongArray(0)
     val newTexts = intent.getStringArrayExtra(EXTRA_TEXTS) ?: arrayOf()
     val newTitles = intent.getStringArrayExtra(EXTRA_TITLES) ?: arrayOf()
@@ -142,7 +151,8 @@ class RunnerService : Service() {
     voiceOn = intent.getBooleanExtra(EXTRA_VOICE, true)
     notifyOn = intent.getBooleanExtra(EXTRA_NOTIFY, true)
 
-    if (!running || newStart != startAt) {
+    // 一時停止から再開するとスタート時刻はずれるが、同じレース（raceId）なら記録は消さない
+    if (!running || newRace != raceId) {
       // 新しいレース
       fired.clear()
       clearLog()
@@ -150,6 +160,7 @@ class RunnerService : Service() {
       lastArrivalAt = 0L
     }
     startAt = newStart
+    raceId = newRace
     running = true
 
     // 読み上げ済み・1分以上前に過ぎたものを除いて、時刻順に並べる
@@ -162,6 +173,7 @@ class RunnerService : Service() {
     texts = idx.map { newTexts[it] }.toTypedArray()
     titles = idx.map { newTitles.getOrElse(it) { newTexts[it] } }.toTypedArray()
     bodies = idx.map { newBodies.getOrElse(it) { "" } }.toTypedArray()
+    points = idx.map { newPoints.getOrElse(it) { -1 } }.toIntArray()
     index = 0
 
     acquireWakeLock()
@@ -215,7 +227,7 @@ class RunnerService : Service() {
   }
 
   /** 予定地点の通知（スマホとウォッチが震える）。「着いた」ボタン付き */
-  private fun postPoint(title: String, body: String) {
+  private fun postPoint(title: String, body: String, point: Int) {
     val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
       val ch = NotificationChannel(POINT_CHANNEL_ID, "予定地点のお知らせ", NotificationManager.IMPORTANCE_HIGH)
@@ -224,9 +236,10 @@ class RunnerService : Service() {
       ch.setSound(null, null)
       nm.createNotificationChannel(ch)
     }
+    // 「着いた」はこの通知の地点として記録する（次の地点の通知が出るまで有効）
     val arrived = PendingIntent.getService(
       this, 1,
-      Intent(this, RunnerService::class.java).apply { action = ACTION_ARRIVED },
+      Intent(this, RunnerService::class.java).apply { action = ACTION_ARRIVED; putExtra(EXTRA_POINT, point) },
       PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
     )
     val launch = packageManager.getLaunchIntentForPackage(packageName)

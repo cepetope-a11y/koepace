@@ -211,6 +211,7 @@ td.r,th.r{text-align:right}
     <span class="small">今の区間の目標ペース</span><span><span class="num" style="font-size:30px" id="paceNow">-</span> /km</span>
   </div>
 
+  <p class="note" id="pauseNote" style="display:none;background:#78350F;color:#FDE68A;text-align:center;font-weight:700">一時停止中（読み上げ・通知も止まっています）<br><span style="font-weight:400">「設定を変更」から再開できます</span></p>
   <button class="pass" type="button" id="passBtn">
     <span style="display:flex;align-items:baseline;gap:6px"><span class="km num" id="passKm">5km</span><span class="t">に着いた</span></span>
     <span style="font-size:12px" id="passPlan">予定 -</span>
@@ -248,6 +249,8 @@ td.r,th.r{text-align:right}
   </div>
   <p class="small" style="margin:0">距離と読み上げの間隔は、レース中は変更できません</p>
   <button class="ghost" type="button" id="cBack">走行画面に戻る</button>
+  <button class="ghost" type="button" id="pauseBtn" style="margin-top:12px">一時停止（練習用）</button>
+  <span class="small" style="text-align:center" id="pauseHint">止めている間は時間が進みません。再開すると、止めた分だけ予定がうしろにずれます</span>
   <button class="stopbtn hold" type="button" id="stopBtn" style="margin-top:12px"><div class="bar" id="stopBar"></div><span>長押しでレースを終了</span></button>
   <span class="small" style="text-align:center">終了しても、そこまでの記録は残ります</span>
 </section>
@@ -297,7 +300,7 @@ td.r,th.r{text-align:right}
     return o;}
   function syncNative(){if(!NATIVE)return;
     var m={type:'schedule',running:false};
-    if(R&&!R.finished){m={type:'schedule',running:true,voice:!!S.voice,notify:S.notify!==false,lock:S.lock!==false,start:R.start,items:R.times.map(function(tt,i){return {ms:Math.round(tt/R.speed*1000),text:annText(i),title:noteTitle(i),body:noteBody(i)};})};}
+    if(R&&!R.finished){m={type:'schedule',running:true,voice:!!S.voice,notify:S.notify!==false,lock:S.lock!==false,race:R.race||R.start,start:R.start,items:R.pausedAt?[]:R.times.map(function(tt,i){return {ms:Math.round(tt/R.speed*1000),text:annText(i),title:noteTitle(i),body:noteBody(i),point:i};})};}
     var j=JSON.stringify(m); if(j===lastSync)return; lastSync=j; post(m);}
 
   function fmt(sec,forceH){sec=Math.round(Math.abs(sec));var h=Math.floor(sec/3600),m=Math.floor(sec%3600/60),s=sec%60;
@@ -391,7 +394,7 @@ td.r,th.r{text-align:right}
   $('backSetup').addEventListener('click',function(){S.ready=false; save(); show('v-setup'); renderSetup();});
 
   /* ---------- レース ---------- */
-  function elapsed(){return R?(Date.now()-R.start)/1000*R.speed:0;}
+  function elapsed(){return R?((R.pausedAt||Date.now())-R.start)/1000*R.speed:0;}
   function target(t){ // 今押すべき地点のindex
     if(R.manual!=null&&!R.rec[R.manual])return R.manual;
     var lr=lastRecorded(), off=(lr>=0&&(R.replanIdx==null||lr>R.replanIdx))?R.rec[lr].diff:0; // 直前の記録の遅れ・速さを見込んで切り替える
@@ -407,7 +410,7 @@ td.r,th.r{text-align:right}
   document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible'&&R&&!R.finished)keepAwake();});
 
   $('startBtn').addEventListener('click',function(){var p=plan();
-    R={start:Date.now(),speed:S.speed,km:p.km,goal:p.goal,edges:p.edges,times:p.times,seg:p.seg,rec:{},said:{},lockUntil:0,lastTap:null,finished:false,label:dist().label,origGoal:p.goal,changes:[]};
+    R={start:Date.now(),speed:S.speed,km:p.km,goal:p.goal,edges:p.edges,times:p.times,seg:p.seg,rec:{},said:{},lockUntil:0,lastTap:null,finished:false,label:dist().label,origGoal:p.goal,changes:[]}; R.race=R.start;
     save(); say('スタートしました。最初の読み上げは'+kmLabel(p.edges[0])+'キロ予定地点、'+ja(p.times[0])+'後です。'); buzz(80); keepAwake(); startRun();});
   function startRun(){show('v-run'); buildTicks(); if(tickTimer)clearInterval(tickTimer); tickTimer=setInterval(tick,250); tick();}
   function buildTicks(){var n=R.km>=20?[0,10,20,30,40]:[0,Math.round(R.km/4),Math.round(R.km/2),Math.round(R.km*3/4)];
@@ -434,12 +437,16 @@ td.r,th.r{text-align:right}
     if(ni>=0){$('nextKm').textContent=(ni===R.edges.length-1?'ゴール':kmLabel(R.edges[ni])+'km'); $('nextLeft').textContent=fmt(R.times[ni]-t); $('trNext').style.display='block'; $('trNext').style.left=(R.edges[ni]/R.km*100)+'%';}
     else{$('nextKm').textContent='ゴール'; $('nextLeft').textContent='0:00'; $('trNext').style.display='none';}
     // 通過ボタン / 記録直後
-    var locked=now<R.lockUntil;
+    var locked=now<R.lockUntil, paused=!!R.pausedAt;
+    $('pauseNote').style.display=paused?'block':'none';
+    if(paused){ $('passBtn').style.display='none'; $('shiftRow').style.display='none'; $('recPanel').classList.remove('on'); }
+    else{
     $('passBtn').style.display=locked?'none':'flex'; $('shiftRow').style.display=locked?'none':'grid'; $('recPanel').classList.toggle('on',locked);
     if(locked){ $('lockLeft').textContent=fmt((R.lockUntil-now)/1000);
       var ul=R.lastTap?Math.ceil(8-(now-R.lastTap.at)/1000):0; $('undoBtn').style.display=ul>0?'inline-block':'none'; $('undoLeft').textContent=Math.max(0,ul); }
     else{ var ti=target(t), last2=ti===R.edges.length-1; $('passKm').textContent=last2?'ゴール':kmLabel(R.edges[ti])+'km'; $('passKm').nextElementSibling.textContent=last2?'に到着':'に着いた';
       $('passPlan').textContent='予定 '+fmt(R.times[ti],R.times[ti]>=3600)+''; }
+    }
     // 差
     var lr=lastRecorded();
     if(lr>=0&&(R.replanIdx==null||lr>R.replanIdx)){var d=R.rec[lr].diff, slow=d>=1, fast=d<=-1, c=slow?'var(--slow)':(fast?'var(--fast)':'var(--ok)');
@@ -463,9 +470,9 @@ td.r,th.r{text-align:right}
 
   $('passBtn').addEventListener('click',function(){recordArrival(elapsed(),Date.now(),true);});
   // ウォッチの通知の「着いた」から（アプリが受け取った時刻で記録）
-  window.koeArrive=function(atMs){if(!R||R.finished)return; recordArrival((atMs-R.start)/1000*R.speed,atMs,false);};
-  function recordArrival(t,now,fromScreen){if(!R)return; if(now<R.lockUntil)return;
-    var i=target(t), d=t-R.times[i]; R.rec[i]={t:t,diff:d};
+  window.koeArrive=function(atMs,pi){if(!R||R.finished||R.pausedAt)return; recordArrival((atMs-R.start)/1000*R.speed,atMs,false,pi);};
+  function recordArrival(t,now,fromScreen,pi){if(!R||R.pausedAt)return; if(now<R.lockUntil)return;
+    var i=(pi!=null&&pi>=0&&pi<R.edges.length&&!R.rec[pi])?pi:target(t), d=t-R.times[i]; R.rec[i]={t:t,diff:d};
     R.lockUntil=now+60000/R.speed; R.lastTap={i:i,at:now}; R.manual=null; save(); buzz(120);
     var last=i===R.edges.length-1, where=last?'ゴール':kmLabel(R.edges[i])+'キロ';
     var msg=where+'、'+(Math.abs(d)<1?'予定どおりです。':(ja(d)+(d>0?'遅れです。':'速いです。')))+adviceVoice(i,d);
@@ -499,7 +506,7 @@ td.r,th.r{text-align:right}
     return {km:aKm,t:aT};}
   function replanTimes(goal){var a=anchor(), t=elapsed(), per=(goal-a.t)/(R.km-a.km);
     return R.edges.map(function(e,i){return e>a.km?a.t+(e-a.km)*per:R.times[i];});}
-  function openChange(){pendingGoal=R.goal; show('v-change'); renderChange();}
+  function openChange(){pendingGoal=R.goal; show('v-change'); renderChange(); renderPause();}
   function renderChange(){if(!R)return; $('cGoal').textContent=fmt(pendingGoal,true);
     var og=R.origGoal||R.goal, d=pendingGoal-R.goal;
     $('cDelta').textContent=d===0?'今の目標のまま':'今の目標から '+mins(d);
@@ -519,6 +526,10 @@ td.r,th.r{text-align:right}
     var dd=pendingGoal-R.goal; R.goal=pendingGoal; R.replanIdx=lastRecorded();
     for(var i=0;i<R.times.length;i++){ if(R.times[i]<=t)R.said[i]=1; else delete R.said[i]; }
     save(); say('目標を'+Math.abs(Math.round(dd/60))+'分'+(dd>0?'遅らせて':'早めて')+'、'+ja(R.goal)+'にしました。'); show('v-run'); tick();});
+  function renderPause(){if(!R)return; $('pauseBtn').textContent=R.pausedAt?'再開する':'一時停止（練習用）';}
+  $('pauseBtn').addEventListener('click',function(){if(!R||R.finished)return; var now=Date.now();
+    if(R.pausedAt){ var dt=now-R.pausedAt; R.start+=dt; if(R.lockUntil>R.pausedAt)R.lockUntil+=dt; delete R.pausedAt; R.pauses=(R.pauses||0)+dt; save(); say('再開しました。'); show('v-run'); tick(); }
+    else{ R.pausedAt=now; save(); say('一時停止しました。'); renderPause(); }});
   $('cBack').addEventListener('click',function(){show('v-run'); tick();});
 
   function finish(){if(!R)return; R.finished=true; R.endT=elapsed(); save(); if(tickTimer)clearInterval(tickTimer);

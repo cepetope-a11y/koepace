@@ -15,7 +15,8 @@ type ScheduleMsg = {
   lock?: boolean;
   notify?: boolean;
   start?: number;
-  items?: { ms: number; text: string; title?: string; body?: string }[];
+  race?: number;
+  items?: { ms: number; text: string; title?: string; body?: string; point?: number }[];
 };
 type SayMsg = { type: 'say'; text: string };
 
@@ -41,7 +42,7 @@ function Main() {
       if (!Runner) return;
       try {
         const list = Runner.takeArrivals();
-        list.forEach((at) => web.current?.injectJavaScript(`window.koeArrive&&window.koeArrive(${at});true;`));
+        list.forEach(([at, pt]) => web.current?.injectJavaScript(`window.koeArrive&&window.koeArrive(${at},${pt});true;`));
       } catch {}
     }
     const t = setInterval(pull, 1000);
@@ -81,6 +82,8 @@ function Main() {
             m.items.map((i) => i.body ?? ''),
             !!m.voice,
             m.notify !== false,
+            m.race ?? m.start,
+            m.items.map((i) => i.point ?? -1),
           );
         } else {
           Runner.stop();

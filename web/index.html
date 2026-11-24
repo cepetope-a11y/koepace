@@ -464,10 +464,10 @@ td.r,th.r{text-align:right}
 
   /* ---------- レース中の目標変更 ---------- */
   var pendingGoal=0;
-  function anchor(){ // 組み直しの起点：最後に申告した地点（なければ予定で過ぎた地点）
+  function anchor(){ // 組み直しの起点：最後に申告した地点（なければ予定で過ぎた地点）。ゴールは起点にしない（予定のゴール時刻を過ぎてもまだ走っているため）
     var t=elapsed(), lr=lastRecorded(), aKm=0, aT=0;
     if(lr>=0&&(R.replanIdx==null||lr>R.replanIdx)){aKm=R.edges[lr]; aT=R.rec[lr].t;}
-    for(var i=0;i<R.edges.length;i++){ if(R.times[i]<=t&&R.edges[i]>aKm&&!R.rec[i]){ var off=(lr>=0&&(R.replanIdx==null||lr>R.replanIdx))?R.rec[lr].diff:0; if(R.edges[i]>aKm){aKm=R.edges[i]; aT=R.times[i]+off;} } }
+    for(var i=0;i<R.edges.length-1;i++){ if(R.times[i]<=t&&R.edges[i]>aKm&&!R.rec[i]){ var off=(lr>=0&&(R.replanIdx==null||lr>R.replanIdx))?R.rec[lr].diff:0; if(R.edges[i]>aKm){aKm=R.edges[i]; aT=R.times[i]+off;} } }
     return {km:aKm,t:aT};}
   function replanTimes(goal){var a=anchor(), t=elapsed(), per=(goal-a.t)/(R.km-a.km);
     return R.edges.map(function(e,i){return e>a.km?a.t+(e-a.km)*per:R.times[i];});}

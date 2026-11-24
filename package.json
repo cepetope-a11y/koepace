@@ -19,7 +19,7 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "node scripts/build-web.js",
-    "test": "node tests/calc.test.js && node tests/replan.test.js && node tests/input.test.js"
+    "test": "node tests/calc.test.js && node tests/replan.test.js && node tests/input.test.js && node tests/notify.test.js"
   },
   "private": true
 }

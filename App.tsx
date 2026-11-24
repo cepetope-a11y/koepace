@@ -1,7 +1,7 @@
 // コエペース：ウェブ試作と同じ画面をアプリの中で表示し、読み上げだけをアプリの常駐サービスに任せる
 // 画面（設定・走行・結果）は web/index.html。読み上げと時計は modules/koepace-runner（画面が消えても動く）
 import { useEffect, useRef, useState } from 'react';
-import { PermissionsAndroid, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { AppState, PermissionsAndroid, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView, WebViewMessageEvent } from 'react-native-webview';
@@ -13,8 +13,9 @@ type ScheduleMsg = {
   running: boolean;
   voice?: boolean;
   lock?: boolean;
+  notify?: boolean;
   start?: number;
-  items?: { ms: number; text: string }[];
+  items?: { ms: number; text: string; title?: string; body?: string }[];
 };
 type SayMsg = { type: 'say'; text: string };
 
@@ -31,6 +32,22 @@ function Main() {
   const [batteryTip, setBatteryTip] = useState(false);
   const [error, setError] = useState(Runner ? '' : '裏で動く部分（KoepaceRunner）がアプリに入っていません');
   const asked = useRef(false);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const web = useRef<any>(null);
+
+  // ウォッチ・通知の「着いた」を画面（記録）に渡す
+  useEffect(() => {
+    function pull() {
+      if (!Runner) return;
+      try {
+        const list = Runner.takeArrivals();
+        list.forEach((at) => web.current?.injectJavaScript(`window.koeArrive&&window.koeArrive(${at});true;`));
+      } catch {}
+    }
+    const t = setInterval(pull, 1000);
+    const s = AppState.addEventListener('change', (st) => { if (st === 'active') pull(); });
+    return () => { clearInterval(t); s.remove(); };
+  }, []);
 
   useEffect(() => {
     try {
@@ -51,12 +68,20 @@ function Main() {
         Runner.speak(m.text);
       } else if (m.type === 'schedule') {
         Runner.setShowWhenLocked(!!(m.running && m.lock));
-        if (m.running && m.voice && m.start && m.items) {
+        if (m.running && (m.voice || m.notify) && m.start && m.items) {
           if (!asked.current) {
             asked.current = true;
             await askNotification();
           }
-          Runner.start(m.start, m.items.map((i) => i.ms), m.items.map((i) => i.text));
+          Runner.start(
+            m.start,
+            m.items.map((i) => i.ms),
+            m.items.map((i) => i.text),
+            m.items.map((i) => i.title ?? i.text),
+            m.items.map((i) => i.body ?? ''),
+            !!m.voice,
+            m.notify !== false,
+          );
         } else {
           Runner.stop();
         }
@@ -93,6 +118,7 @@ function Main() {
         </View>
       )}
       <WebView
+        ref={web}
         style={styles.web}
         source={{ html: PAGE_HTML, baseUrl: 'https://koepace.local/' }}
         originWhitelist={['*']}

@@ -9,7 +9,8 @@ export type RunnerLogItem = {
 };
 
 type RunnerModule = {
-  start(startAtMs: number, offsetsMs: number[], texts: string[]): void;
+  start(startAtMs: number, offsetsMs: number[], texts: string[], titles: string[], bodies: string[], voice: boolean, notify: boolean): void;
+  takeArrivals(): number[];
   stop(): void;
   speak(text: string): void;
   setShowWhenLocked(on: boolean): void;

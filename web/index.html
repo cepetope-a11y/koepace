@@ -129,10 +129,14 @@ td.r,th.r{text-align:right}
   </div>
 
   <div class="card" id="lockCard" style="display:none">
-    <h2>走行中の画面</h2>
+    <h2>走行中の画面と通知</h2>
     <div class="row">
       <div><div style="font-size:14px;font-weight:700">ロック画面の上に表示</div><div class="small">電源ボタンを押すと、ロックを解除せずに走行画面が出て、すぐボタンを押せます</div></div>
       <button class="switch" type="button" role="switch" id="lockSw" aria-checked="true" aria-label="ロック画面の上に表示"><span></span></button>
+    </div>
+    <div class="row">
+      <div><div style="font-size:14px;font-weight:700">予定地点で通知</div><div class="small">スマホとウォッチが震えて「10km予定地点」などと表示。通知の「着いた」でも申告できます（ウォッチによっては表示のみ）。声をオフにすれば、通知だけで使えます</div></div>
+      <button class="switch" type="button" role="switch" id="notifySw" aria-checked="true" aria-label="予定地点で通知"><span></span></button>
     </div>
   </div>
 
@@ -273,7 +277,7 @@ td.r,th.r{text-align:right}
              {id:'10k',label:'10km',km:10,def:3000,quick:[['45分',2700],['50分',3000],['55分',3300],['60分',3600]]},
              {id:'custom',label:'その他',km:30,def:10800,quick:[]}];
   var MAXKM=200; // ウルトラ（120kmなど）にも対応
-  var S={dist:'full',customKm:30,goal:14400,interval:5,speed:1,voice:true,lock:true,profile:'even',adj:{}};
+  var S={dist:'full',customKm:30,goal:14400,interval:5,speed:1,voice:true,lock:true,notify:true,profile:'even',adj:{}};
   var R=null; // race
   var showRemain=false, wakeLock=null, tickTimer=null;
 
@@ -284,9 +288,16 @@ td.r,th.r{text-align:right}
   var NATIVE=!!window.ReactNativeWebView, lastSync='';
   function post(m){try{window.ReactNativeWebView.postMessage(JSON.stringify(m));}catch(e){}}
   function annText(i){return i===R.edges.length-1?'ゴール予定時刻です。':kmLabel(R.edges[i])+'キロ予定地点です。'+(i===0?'距離看板などとずれていたら、着いたときにボタンを押してください。':'');}
+  function lastDiff(){var lr=lastRecorded(); return (lr>=0&&(R.replanIdx==null||lr>R.replanIdx))?R.rec[lr].diff:null;}
+  function noteTitle(i){return (i===R.edges.length-1?'ゴール予定':kmLabel(R.edges[i])+'km予定地点')+' '+fmt(R.times[i],R.times[i]>=3600);}
+  function noteBody(i){var o='', last=i===R.edges.length-1;
+    if(!last){var gap=R.edges[i+1]-R.edges[i], p=(R.times[i+1]-R.times[i])/gap; o='次の'+kmLabel(gap)+'km '+fmt(p)+'/km';}
+    else o='目標 '+fmt(R.goal,true);
+    var d=lastDiff(); if(d!==null&&Math.abs(d)>=1)o+=' ・ 申告 '+(d>0?'+':'−')+fmt(d);
+    return o;}
   function syncNative(){if(!NATIVE)return;
     var m={type:'schedule',running:false};
-    if(R&&!R.finished){m={type:'schedule',running:true,voice:!!S.voice,lock:S.lock!==false,start:R.start,items:R.times.map(function(tt,i){return {ms:Math.round(tt/R.speed*1000),text:annText(i)};})};}
+    if(R&&!R.finished){m={type:'schedule',running:true,voice:!!S.voice,notify:S.notify!==false,lock:S.lock!==false,start:R.start,items:R.times.map(function(tt,i){return {ms:Math.round(tt/R.speed*1000),text:annText(i),title:noteTitle(i),body:noteBody(i)};})};}
     var j=JSON.stringify(m); if(j===lastSync)return; lastSync=j; post(m);}
 
   function fmt(sec,forceH){sec=Math.round(Math.abs(sec));var h=Math.floor(sec/3600),m=Math.floor(sec%3600/60),s=sec%60;
@@ -334,6 +345,7 @@ td.r,th.r{text-align:right}
     pills($('speedPills'),[{id:1,label:'実際の速さ'},{id:10,label:'10倍速'},{id:60,label:'60倍速'}],S.speed,function(it){S.speed=it.id; save(); renderSetup();});
     $('voiceSw').setAttribute('aria-checked',String(S.voice));
     $('lockSw').setAttribute('aria-checked',String(S.lock!==false));
+    $('notifySw').setAttribute('aria-checked',String(S.notify!==false));
     $('avgPace').textContent=fmt(S.goal/d.km);
     pills($('profPills'),[{id:'even',label:'均等'},{id:'neg',label:'前半抑えめ'},{id:'pos',label:'前半貯金'}],S.profile,function(it){S.profile=it.id; save(); renderSetup();});
     $('profNote').textContent={even:'全区間ほぼ同じペース。いちばんシンプルな作戦です。',neg:'前半を抑えて後半に上げる作戦。後半の失速が心配な人向け。',pos:'前半に貯金を作り、後半は少し落ちる前提の作戦。'}[S.profile];
@@ -367,6 +379,7 @@ td.r,th.r{text-align:right}
   $('kmDown').addEventListener('click',function(){stepKm(-1);}); $('kmUp').addEventListener('click',function(){stepKm(1);});
   $('voiceSw').addEventListener('click',function(){S.voice=!S.voice; save(); renderSetup();});
   $('lockSw').addEventListener('click',function(){S.lock=S.lock===false; save(); renderSetup();});
+  $('notifySw').addEventListener('click',function(){S.notify=S.notify===false; save(); renderSetup();});
   $('testVoice').addEventListener('click',function(){var keep=S.voice; S.voice=true; say('5キロ予定地点です。次の5キロも5分41秒で行きましょう。'); S.voice=keep;});
 
   /* ---------- 画面切り替え ---------- */
@@ -448,15 +461,18 @@ td.r,th.r{text-align:right}
   function adviceVoice(i,d){var rem=R.km-R.edges[i]; if(rem<=0.01)return ''; var s=Math.max(1,Math.round(Math.abs(d)/rem));
     if(d>=1)return '1キロあたり'+s+'秒上げれば取り戻せます。'; if(d<=-1)return '1キロあたり'+s+'秒落としても大丈夫です。'; return '';}
 
-  $('passBtn').addEventListener('click',function(){if(!R)return; var t=elapsed(), now=Date.now(); if(now<R.lockUntil)return;
+  $('passBtn').addEventListener('click',function(){recordArrival(elapsed(),Date.now(),true);});
+  // ウォッチの通知の「着いた」から（アプリが受け取った時刻で記録）
+  window.koeArrive=function(atMs){if(!R||R.finished)return; recordArrival((atMs-R.start)/1000*R.speed,atMs,false);};
+  function recordArrival(t,now,fromScreen){if(!R)return; if(now<R.lockUntil)return;
     var i=target(t), d=t-R.times[i]; R.rec[i]={t:t,diff:d};
     R.lockUntil=now+60000/R.speed; R.lastTap={i:i,at:now}; R.manual=null; save(); buzz(120);
     var last=i===R.edges.length-1, where=last?'ゴール':kmLabel(R.edges[i])+'キロ';
     var msg=where+'、'+(Math.abs(d)<1?'予定どおりです。':(ja(d)+(d>0?'遅れです。':'速いです。')))+adviceVoice(i,d);
     $('recTxt').textContent=(last?'ゴール':kmLabel(R.edges[i])+'km')+' 記録しました';
-    say(msg); tick();
+    if(fromScreen)say(msg); tick();
     if(last)setTimeout(finish,2500);
-  });
+  }
   $('undoBtn').addEventListener('click',function(){if(!R||!R.lastTap)return; delete R.rec[R.lastTap.i]; R.lockUntil=0; R.lastTap=null; R.manual=null; save(); say('取り消しました。'); tick();});
   $('timeToggle').addEventListener('click',function(){showRemain=!showRemain; tick();});
   $('prevPt').addEventListener('click',function(){shiftTarget(-1);});

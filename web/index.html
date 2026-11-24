@@ -198,7 +198,7 @@ td.r,th.r{text-align:right}
     <div class="row"><span class="small" id="diffLab">予定との差（申告なし＝予定どおり）</span><span style="font-weight:900" id="diffTxt"><span class="num diffbig">±0:00</span></span></div>
     <div class="gwrap" aria-hidden="true"><div class="gauge"><div class="l"></div><div class="r"></div></div><div class="center"></div><div class="needle" id="needle" style="left:50%;background:var(--ok)"></div></div>
     <div class="glabels"><span style="color:#93C5FD">← 速い</span><span style="color:var(--sub);font-weight:400">予定どおり</span><span style="color:#FDBA74">遅い →</span></div>
-    <span style="font-size:13px;color:#86EFAC" id="advice">予定どおりなら何もしなくてOK。看板とずれたときだけ下のボタンで申告</span>
+    <span style="font-size:13px;color:#86EFAC" id="advice">予定どおりなら何もしなくてOK。距離看板とずれたときだけ下のボタンで申告</span>
   </div>
 
   <div class="card" style="flex-direction:row;justify-content:space-between;align-items:baseline">
@@ -280,7 +280,7 @@ td.r,th.r{text-align:right}
   // アプリの中で動くとき：読み上げはアプリ（画面が消えても動く部分）に任せる
   var NATIVE=!!window.ReactNativeWebView, lastSync='';
   function post(m){try{window.ReactNativeWebView.postMessage(JSON.stringify(m));}catch(e){}}
-  function annText(i){return i===R.edges.length-1?'ゴール予定時刻です。':kmLabel(R.edges[i])+'キロ予定地点です。'+(i===0?'看板とずれていたら、着いたときにボタンを押してください。':'');}
+  function annText(i){return i===R.edges.length-1?'ゴール予定時刻です。':kmLabel(R.edges[i])+'キロ予定地点です。'+(i===0?'距離看板などとずれていたら、着いたときにボタンを押してください。':'');}
   function syncNative(){if(!NATIVE)return;
     var m={type:'schedule',running:false};
     if(R&&!R.finished){m={type:'schedule',running:true,voice:!!S.voice,lock:S.lock!==false,start:R.start,items:R.times.map(function(tt,i){return {ms:Math.round(tt/R.speed*1000),text:annText(i)};})};}
@@ -427,7 +427,7 @@ td.r,th.r{text-align:right}
       $('diffLab').textContent='予定との差（申告なし＝予定どおり）';
       $('diffTxt').innerHTML='<span class="num diffbig">±0:00</span>'; $('diffTxt').style.color='var(--ink)';
       $('needle').style.left='50%'; $('needle').style.background='var(--ok)';
-      $('advice').textContent='予定どおりなら何もしなくてOK。看板とずれたときだけ下のボタンで申告'; }
+      $('advice').textContent='予定どおりなら何もしなくてOK。距離看板とずれたときだけ下のボタンで申告'; }
   }
   function advice(i,d){var rem=R.km-R.edges[i]; if(rem<=0.01)return 'お疲れさまでした';
     var per=Math.abs(d)/rem; var s=Math.max(1,Math.round(per));

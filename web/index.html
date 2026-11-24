@@ -75,7 +75,9 @@ td.r,th.r{text-align:right}
 .recorded{flex-grow:1;min-height:150px;border-radius:22px;border:2px dashed #4B5563;background:var(--card);display:none;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:12px;text-align:center}
 .recorded.on{display:flex}
 .undo{min-height:44px;padding:0 20px;border:2px solid #9CA3AF;border-radius:22px;background:transparent;color:#fff;font-size:14px;font-weight:700;cursor:pointer}
-.hold{position:relative;overflow:hidden}
+.hold{position:relative;overflow:hidden;touch-action:none}
+.hold,.hold *,.pass,.pass *,#v-run,#v-change{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.paceIn{width:64px;min-height:40px;border:2px solid var(--line);border-radius:10px;background:#0B1220;color:var(--ink);text-align:center;font-family:'Barlow Condensed',sans-serif;font-size:20px;font-weight:700}
 .hold .bar{position:absolute;left:0;top:0;bottom:0;width:0;background:rgba(185,28,28,.35)}
 .hold span{position:relative}
 .stopbtn{min-height:44px;border:2px solid #7F1D1D;background:transparent;color:#FCA5A5;border-radius:14px;font-size:14px;font-weight:700;cursor:pointer}
@@ -99,7 +101,7 @@ td.r,th.r{text-align:right}
     <div class="pills c4" id="distPills"></div>
     <div class="kmrow" id="kmRow">
       <button class="step" type="button" id="kmDown" aria-label="1km減らす">−</button>
-      <input class="kminput" id="kmInput" type="number" inputmode="decimal" step="any" min="1" max="100" aria-label="距離（km）">
+      <input class="kminput" id="kmInput" type="number" inputmode="decimal" step="any" min="1" max="200" aria-label="距離（km）">
       <span style="font-weight:700">km</span>
       <button class="step" type="button" id="kmUp" aria-label="1km増やす">＋</button>
     </div>
@@ -270,6 +272,7 @@ td.r,th.r{text-align:right}
              {id:'half',label:'ハーフ',km:21.0975,def:7200,quick:[['1:45',6300],['2:00',7200],['2:15',8100],['2:30',9000]]},
              {id:'10k',label:'10km',km:10,def:3000,quick:[['45分',2700],['50分',3000],['55分',3300],['60分',3600]]},
              {id:'custom',label:'その他',km:30,def:10800,quick:[]}];
+  var MAXKM=200; // ウルトラ（120kmなど）にも対応
   var S={dist:'full',customKm:30,goal:14400,interval:5,speed:1,voice:true,lock:true,profile:'even',adj:{}};
   var R=null; // race
   var showRemain=false, wakeLock=null, tickTimer=null;
@@ -337,7 +340,7 @@ td.r,th.r{text-align:right}
     var sp=segPlan(), sr='', cum=0;
     sp.edges.forEach(function(e,i){cum+=sp.paces[i]*sp.lens[i]; var from=i?sp.edges[i-1]:0, short=sp.lens[i]<4.99;
       var lab=(i===sp.edges.length-1&&short)?kmLabel(from)+'–G':kmLabel(from)+'–'+kmLabel(e);
-      sr+='<tr><td style="font-size:13px">'+lab+'</td><td style="text-align:center;white-space:nowrap"><button class="step" type="button" data-seg="'+i+'" data-d="-5" aria-label="'+lab+'を5秒速く" style="width:40px;height:40px;font-size:18px">−</button> <span class="num" style="font-size:20px;display:inline-block;min-width:44px">'+fmt(sp.paces[i])+'</span> <button class="step" type="button" data-seg="'+i+'" data-d="5" aria-label="'+lab+'を5秒遅く" style="width:40px;height:40px;font-size:18px">＋</button></td><td class="r num" style="font-size:18px">'+fmt(cum,cum>=3600)+'</td></tr>';});
+      sr+='<tr><td style="font-size:13px">'+lab+'</td><td style="text-align:center;white-space:nowrap"><button class="step" type="button" data-seg="'+i+'" data-d="-5" aria-label="'+lab+'を5秒速く" style="width:40px;height:40px;font-size:18px">−</button> <input class="paceIn" type="text" inputmode="numeric" data-pace="'+i+'" value="'+fmt(sp.paces[i])+'" aria-label="'+lab+'のペース（例 541 で 5分41秒）"> <button class="step" type="button" data-seg="'+i+'" data-d="5" aria-label="'+lab+'を5秒遅く" style="width:40px;height:40px;font-size:18px">＋</button></td><td class="r num" style="font-size:18px">'+fmt(cum,cum>=3600)+'</td></tr>';});
     $('segBody').innerHTML=sr;
     $('planGoal').textContent=fmt(sp.total,true);
     var df=Math.round(sp.total-S.goal);
@@ -349,10 +352,18 @@ td.r,th.r{text-align:right}
   }
   function readTime(){var h=+$('gh').value||0,m=+$('gm').value||0,s=+$('gs').value||0; S.goal=Math.max(60,Math.min(48*3600,h*3600+m*60+s)); save(); renderSetup();}
   ['gh','gm','gs'].forEach(function(id){$(id).addEventListener('change',readTime);});
+  // ペースの直接入力：「5:41」「541」「5.41」のどれでも 5分41秒
+  function parsePace(v){v=String(v).trim().replace(/[：．。.]/g,':'); var m=v.match(/^(\d{1,2}):(\d{1,2})$/);
+    if(!m){var d=v.replace(/\D/g,''); if(d.length<3||d.length>4)return null; m=[0,d.slice(0,d.length-2),d.slice(-2)];}
+    var mm=+m[1], ss=+m[2]; if(ss>59)return null; var t=mm*60+ss; return (t>=120&&t<=1800)?t:null;}
+  $('segBody').addEventListener('change',function(e){var inp=e.target.closest('input[data-pace]'); if(!inp)return; var i=+inp.dataset.pace, sp=segPlan(), t=parsePace(inp.value);
+    if(t===null){inp.value=fmt(sp.paces[i]); inp.style.borderColor='#F87171'; setTimeout(function(){inp.style.borderColor='';},1200); return;}
+    S.adj=S.adj||{}; for(var k=0;k<4;k++){var cur=segPlan().paces[i]; if(Math.abs(cur-t)<1e-6)break; S.adj[i]=(S.adj[i]||0)+(t-cur);} save(); renderSetup();});
+  $('segBody').addEventListener('focusin',function(e){var inp=e.target.closest('input[data-pace]'); if(inp)setTimeout(function(){try{inp.select();}catch(x){}},0);});
   $('segBody').addEventListener('click',function(e){var b=e.target.closest('button[data-seg]'); if(!b)return; var i=+b.dataset.seg, d=+b.dataset.d; S.adj=S.adj||{}; S.adj[i]=(S.adj[i]||0)+d; save(); renderSetup();});
   $('resetAdj').addEventListener('click',function(){S.adj={}; save(); renderSetup();});
-  $('kmInput').addEventListener('change',function(){var v=parseFloat($('kmInput').value); if(!isNaN(v)){var pace=S.goal/S.customKm; S.customKm=Math.max(1,Math.min(100,Math.round(v*10)/10)); S.goal=Math.round(pace*S.customKm); save(); renderSetup();}});
-  function stepKm(dv){S.adj={}; var pace=S.goal/S.customKm; S.customKm=Math.max(1,Math.min(100,Math.round((S.customKm+dv)*10)/10)); S.goal=Math.round(pace*S.customKm); save(); renderSetup();}
+  $('kmInput').addEventListener('change',function(){var v=parseFloat($('kmInput').value); if(!isNaN(v)){var pace=S.goal/S.customKm; S.customKm=Math.max(1,Math.min(MAXKM,Math.round(v*10)/10)); S.goal=Math.round(pace*S.customKm); save(); renderSetup();}});
+  function stepKm(dv){S.adj={}; var pace=S.goal/S.customKm; S.customKm=Math.max(1,Math.min(MAXKM,Math.round((S.customKm+dv)*10)/10)); S.goal=Math.round(pace*S.customKm); save(); renderSetup();}
   $('kmDown').addEventListener('click',function(){stepKm(-1);}); $('kmUp').addEventListener('click',function(){stepKm(1);});
   $('voiceSw').addEventListener('click',function(){S.voice=!S.voice; save(); renderSetup();});
   $('lockSw').addEventListener('click',function(){S.lock=S.lock===false; save(); renderSetup();});
@@ -458,7 +469,8 @@ td.r,th.r{text-align:right}
     btn.addEventListener('pointerdown',function(e){e.preventDefault(); st=Date.now(); end(); st=Date.now();
       t=setInterval(function(){var p=Math.min(1,(Date.now()-st)/ms); bar.style.width=(p*100)+'%'; if(p>=1){end(); buzz(40); done();}},30);});
     ['pointerup','pointerleave','pointercancel'].forEach(function(ev){btn.addEventListener(ev,end);});
-    btn.addEventListener('contextmenu',function(e){e.preventDefault();});}
+    btn.addEventListener('contextmenu',function(e){e.preventDefault();});
+    btn.addEventListener('selectstart',function(e){e.preventDefault();});}
   holdable($('stopBtn'),$('stopBar'),2000,function(){finish();});
   holdable($('setBtn'),$('setBar'),800,function(){openChange();});
 

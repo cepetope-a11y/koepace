@@ -11,7 +11,7 @@ function race(km, goal, interval) {
   const edges = []; for (let k = interval; k < km - 0.01; k += interval) edges.push(Math.round(k * 1000) / 1000); edges.push(km);
   return { km, goal, edges, times: edges.map(e => goal / km * e), rec: {}, replanIdx: null };
 }
-for (const [km, goal, interval] of [[42.195, 14400, 5], [42.195, 18000, 1], [21.0975, 7200, 3], [10, 3000, 1], [100, 43200, 5]]) {
+for (const [km, goal, interval] of [[42.195, 14400, 5], [42.195, 18000, 1], [21.0975, 7200, 3], [10, 3000, 1], [100, 43200, 5], [120, 50400, 1], [200, 172000, 5]]) {
   for (const late of [-120, 0, 30, 300, 900]) {
     for (const frac of [0.1, 0.3, 0.5, 0.8, 0.95]) {
       for (const recordLast of [false, true]) {

@@ -14,10 +14,10 @@ function ok(cond, msg) { checks++; if (!cond) { fails++; if (fails <= 30) consol
 const EPS = 1e-6;
 
 for (const id of ['full', 'half', '10k', 'custom']) {
-  for (const customKm of (id === 'custom' ? [1, 3.3, 5, 7.5, 12.3, 30, 42.195, 50, 100] : [0])) {
+  for (const customKm of (id === 'custom' ? [1, 3.3, 5, 7.5, 12.3, 30, 42.195, 50, 100, 120, 160.9, 200] : [0])) {
     for (const interval of [1, 2, 3, 5]) {
       for (const profile of ['even', 'neg', 'pos']) {
-        for (const paceSec of [180, 240, 300, 360, 420, 480, 600, 900]) {
+        for (const paceSec of [180, 240, 300, 360, 420, 480, 600, 900, 1200]) {
           for (const adjCase of [0, 1, 2]) {
             const m = mk(); const S = m.S;
             S.dist = id; S.customKm = customKm; S.interval = interval; S.profile = profile;

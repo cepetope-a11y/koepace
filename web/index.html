@@ -462,11 +462,11 @@ td.r,th.r{text-align:right}
   }
   function advice(i,d){var rem=R.km-R.edges[i]; if(rem<=0.01)return 'お疲れさまでした';
     var per=Math.abs(d)/rem; var s=Math.max(1,Math.round(per));
-    if(d>=1)return '残り'+kmLabel(rem)+'kmで、1kmあたり約'+s+'秒上げれば取り戻せます';
-    if(d<=-1)return '1kmあたり約'+s+'秒落としても大丈夫です';
+    if(d>=1)return '残り'+kmLabel(rem)+'kmで、1kmあたり約'+ja(s)+'上げれば取り戻せます';
+    if(d<=-1)return '1kmあたり約'+ja(s)+'落としても大丈夫です';
     return 'この調子でいきましょう';}
   function adviceVoice(i,d){var rem=R.km-R.edges[i]; if(rem<=0.01)return ''; var s=Math.max(1,Math.round(Math.abs(d)/rem));
-    if(d>=1)return '1キロあたり'+s+'秒上げれば取り戻せます。'; if(d<=-1)return '1キロあたり'+s+'秒落としても大丈夫です。'; return '';}
+    if(d>=1)return '1キロあたり'+ja(s)+'上げれば取り戻せます。'; if(d<=-1)return '1キロあたり'+ja(s)+'落としても大丈夫です。'; return '';}
 
   $('passBtn').addEventListener('click',function(){recordArrival(elapsed(),Date.now(),true);});
   // ウォッチの通知の「着いた」から（アプリが受け取った時刻で記録）

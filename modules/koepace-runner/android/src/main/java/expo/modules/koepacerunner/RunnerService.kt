@@ -36,6 +36,7 @@ class RunnerService : Service() {
     const val EXTRA_RACE = "race"
     const val EXTRA_POINTS = "points"
     const val EXTRA_POINT = "point"
+    const val EXTRA_CHIME = "chime"
     const val ACTION_ARRIVED = "expo.modules.koepacerunner.ARRIVED"
 
     private const val CHANNEL_ID = "koepace_run"
@@ -81,6 +82,7 @@ class RunnerService : Service() {
   private var points = IntArray(0)
   private var voiceOn = true
   private var notifyOn = true
+  private var chimeOn = true
   private var lastArrivalAt = 0L
   private var index = 0
   private val fired = HashSet<String>()
@@ -95,7 +97,7 @@ class RunnerService : Service() {
         handler.postDelayed(this, target - now)
         return
       }
-      val focus = if (voiceOn) (speaker?.speak(texts[index]) ?: false) else true
+      val focus = if (voiceOn) (speaker?.speak(texts[index], chimeOn) ?: false) else true
       if (notifyOn) postPoint(titles.getOrElse(index) { texts[index] }, bodies.getOrElse(index) { "" }, points.getOrElse(index) { -1 })
       fired.add(key(offsets[index], texts[index]))
       addLog(
@@ -150,6 +152,7 @@ class RunnerService : Service() {
     val newBodies = intent.getStringArrayExtra(EXTRA_BODIES) ?: arrayOf()
     voiceOn = intent.getBooleanExtra(EXTRA_VOICE, true)
     notifyOn = intent.getBooleanExtra(EXTRA_NOTIFY, true)
+    chimeOn = intent.getBooleanExtra(EXTRA_CHIME, true)
 
     // 一時停止から再開するとスタート時刻はずれるが、同じレース（raceId）なら記録は消さない
     if (!running || newRace != raceId) {

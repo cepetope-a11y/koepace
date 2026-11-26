@@ -3,7 +3,9 @@ package expo.modules.koepacerunner
 import android.content.Context
 import android.media.AudioAttributes
 import android.media.AudioFocusRequest
+import android.media.AudioFormat
 import android.media.AudioManager
+import android.media.AudioTrack
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -52,15 +54,69 @@ class Speaker(context: Context) {
     }
   }
 
-  /** 読み上げる。音楽アプリに音量を下げてもらえたら true */
-  fun speak(text: String): Boolean {
+  /** 読み上げる。音楽アプリに音量を下げてもらえたら true。chime=true なら先に「ピロン♪」を鳴らす */
+  fun speak(text: String, chime: Boolean = false): Boolean {
     counter += 1
     val id = "u$counter"
+    if (chime) {
+      val granted = requestFocus()
+      speaking += 1 // 合図が鳴っている間も音楽を下げたままにする
+      val ms = playChime()
+      handler.postDelayed({
+        speaking = (speaking - 1).coerceAtLeast(0)
+        if (!ready) pending.add(text to id) else speakNow(text, id)
+      }, ms + 80L)
+      return granted
+    }
     if (!ready) {
       pending.add(text to id)
       return true
     }
     return speakNow(text, id)
+  }
+
+  /** 予定地点の合図「ピロン♪」（低い音→高い音）。鳴らす長さ(ms)を返す */
+  private fun playChime(): Long {
+    val rate = 22050
+    val notes = listOf(Triple(988.0, 0.11, 0.0), Triple(1319.0, 0.26, 0.13)) // 周波数, 長さ(秒), 始まり(秒)
+    val total = 0.42
+    val n = (rate * total).toInt()
+    val pcm = ShortArray(n)
+    for ((f, len, start) in notes) {
+      val s0 = (start * rate).toInt()
+      val cnt = (len * rate).toInt()
+      for (i in 0 until cnt) {
+        val k = s0 + i
+        if (k >= n) break
+        val t = i.toDouble() / rate
+        val attack = (t / 0.008).coerceAtMost(1.0)
+        val decay = Math.exp(-t * 9.0)
+        val v = Math.sin(2 * Math.PI * f * t) * attack * decay * 0.55
+        val mixed = pcm[k] + (v * Short.MAX_VALUE).toInt()
+        pcm[k] = mixed.coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
+      }
+    }
+    return try {
+      val track = AudioTrack.Builder()
+        .setAudioAttributes(attrs)
+        .setAudioFormat(
+          AudioFormat.Builder()
+            .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+            .setSampleRate(rate)
+            .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+            .build()
+        )
+        .setBufferSizeInBytes(n * 2)
+        .setTransferMode(AudioTrack.MODE_STATIC)
+        .build()
+      track.write(pcm, 0, n)
+      track.play()
+      val ms = (total * 1000).toLong()
+      handler.postDelayed({ try { track.stop(); track.release() } catch (e: Exception) {} }, ms + 200L)
+      ms
+    } catch (e: Exception) {
+      0L
+    }
   }
 
   private fun speakNow(text: String, id: String): Boolean {

@@ -14,11 +14,12 @@ type ScheduleMsg = {
   voice?: boolean;
   lock?: boolean;
   notify?: boolean;
+  chime?: boolean;
   start?: number;
   race?: number;
   items?: { ms: number; text: string; title?: string; body?: string; point?: number }[];
 };
-type SayMsg = { type: 'say'; text: string };
+type SayMsg = { type: 'say'; text: string; chime?: boolean };
 
 async function askNotification() {
   if (Platform.OS === 'android' && Number(Platform.Version) >= 33) {
@@ -66,7 +67,7 @@ function Main() {
     }
     try {
       if (m.type === 'say') {
-        Runner.speak(m.text);
+        Runner.speak(m.text, !!m.chime);
       } else if (m.type === 'schedule') {
         Runner.setShowWhenLocked(!!(m.running && m.lock));
         if (m.running && (m.voice || m.notify) && m.start && m.items) {
@@ -84,6 +85,7 @@ function Main() {
             m.notify !== false,
             m.race ?? m.start,
             m.items.map((i) => i.point ?? -1),
+            m.chime !== false,
           );
         } else {
           Runner.stop();

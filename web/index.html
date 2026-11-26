@@ -125,6 +125,10 @@ td.r,th.r{text-align:right}
       <div><div style="font-size:14px;font-weight:700">声で知らせる</div><div class="small">スマホの読み上げ機能を使います</div></div>
       <button class="switch" type="button" role="switch" id="voiceSw" aria-checked="true" aria-label="声で知らせる"><span></span></button>
     </div>
+    <div class="row">
+      <div><div style="font-size:14px;font-weight:700">予定地点の前に合図の音</div><div class="small">「ピロン♪」と鳴ってから読み上げます</div></div>
+      <button class="switch" type="button" role="switch" id="chimeSw" aria-checked="true" aria-label="予定地点の前に合図の音"><span></span></button>
+    </div>
     <button class="ghost" type="button" id="testVoice">声をテストする</button>
   </div>
 
@@ -280,7 +284,7 @@ td.r,th.r{text-align:right}
              {id:'10k',label:'10km',km:10,def:3000,quick:[['45分',2700],['50分',3000],['55分',3300],['60分',3600]]},
              {id:'custom',label:'その他',km:30,def:10800,quick:[]}];
   var MAXKM=200; // ウルトラ（120kmなど）にも対応
-  var S={dist:'full',customKm:30,goal:14400,interval:5,speed:1,voice:true,lock:true,notify:true,profile:'even',adj:{}};
+  var S={dist:'full',customKm:30,goal:14400,interval:5,speed:1,voice:true,lock:true,notify:true,chime:true,profile:'even',adj:{}};
   var R=null; // race
   var showRemain=false, wakeLock=null, tickTimer=null;
 
@@ -300,7 +304,7 @@ td.r,th.r{text-align:right}
     return o;}
   function syncNative(){if(!NATIVE)return;
     var m={type:'schedule',running:false};
-    if(R&&!R.finished){m={type:'schedule',running:true,voice:!!S.voice,notify:S.notify!==false,lock:S.lock!==false,race:R.race||R.start,start:R.start,items:R.pausedAt?[]:R.times.map(function(tt,i){return {ms:Math.round(tt/R.speed*1000),text:annText(i),title:noteTitle(i),body:noteBody(i),point:i};})};}
+    if(R&&!R.finished){m={type:'schedule',running:true,voice:!!S.voice,notify:S.notify!==false,chime:S.chime!==false,lock:S.lock!==false,race:R.race||R.start,start:R.start,items:R.pausedAt?[]:R.times.map(function(tt,i){return {ms:Math.round(tt/R.speed*1000),text:annText(i),title:noteTitle(i),body:noteBody(i),point:i};})};}
     var j=JSON.stringify(m); if(j===lastSync)return; lastSync=j; post(m);}
 
   function fmt(sec,forceH){sec=Math.round(Math.abs(sec));var h=Math.floor(sec/3600),m=Math.floor(sec%3600/60),s=sec%60;
@@ -329,6 +333,13 @@ td.r,th.r{text-align:right}
   var jaVoice=null;
   function pickVoice(){try{var vs=speechSynthesis.getVoices(); jaVoice=vs.find(function(v){return /ja/i.test(v.lang);})||null;}catch(e){}}
   if('speechSynthesis' in window){pickVoice(); try{speechSynthesis.onvoiceschanged=pickVoice;}catch(e){}}
+  // 予定地点の合図「ピロン♪」（ウェブ版）
+  var AC=null; function audioCtx(){try{if(!AC){var C=window.AudioContext||window.webkitAudioContext; if(C)AC=new C();} if(AC&&AC.state==='suspended')AC.resume();}catch(e){} return AC;}
+  function chime(){var c=audioCtx(); if(!c)return 0; var t0=c.currentTime;
+    [[988,0,0.11],[1319,0.13,0.26]].forEach(function(n){var o=c.createOscillator(), g=c.createGain(); o.type='sine'; o.frequency.value=n[0];
+      g.gain.setValueAtTime(0.0001,t0+n[1]); g.gain.exponentialRampToValueAtTime(0.35,t0+n[1]+0.008); g.gain.exponentialRampToValueAtTime(0.0001,t0+n[1]+n[2]);
+      o.connect(g); g.connect(c.destination); o.start(t0+n[1]); o.stop(t0+n[1]+n[2]+0.02);}); return 420;}
+  function sayChime(t){if(!S.voice)return; if(S.chime===false){say(t);return;} if(NATIVE){post({type:'say',text:t,chime:true});return;} var ms=chime(); setTimeout(function(){say(t);},ms+80);}
   function say(t){if(!S.voice)return; if(NATIVE){post({type:'say',text:t});return;} if(!('speechSynthesis' in window))return;
     try{speechSynthesis.cancel(); var u=new SpeechSynthesisUtterance(t); u.lang='ja-JP'; if(jaVoice)u.voice=jaVoice; u.rate=1.05; speechSynthesis.speak(u);}catch(e){}}
   function buzz(p){try{if(navigator.vibrate)navigator.vibrate(p);}catch(e){}}
@@ -349,6 +360,7 @@ td.r,th.r{text-align:right}
     $('voiceSw').setAttribute('aria-checked',String(S.voice));
     $('lockSw').setAttribute('aria-checked',String(S.lock!==false));
     $('notifySw').setAttribute('aria-checked',String(S.notify!==false));
+    $('chimeSw').setAttribute('aria-checked',String(S.chime!==false));
     $('avgPace').textContent=fmt(S.goal/d.km);
     pills($('profPills'),[{id:'even',label:'均等'},{id:'neg',label:'前半抑えめ'},{id:'pos',label:'前半貯金'}],S.profile,function(it){S.profile=it.id; save(); renderSetup();});
     $('profNote').textContent={even:'全区間ほぼ同じペース。いちばんシンプルな作戦です。',neg:'前半を抑えて後半に上げる作戦。後半の失速が心配な人向け。',pos:'前半に貯金を作り、後半は少し落ちる前提の作戦。'}[S.profile];
@@ -383,7 +395,8 @@ td.r,th.r{text-align:right}
   $('voiceSw').addEventListener('click',function(){S.voice=!S.voice; save(); renderSetup();});
   $('lockSw').addEventListener('click',function(){S.lock=S.lock===false; save(); renderSetup();});
   $('notifySw').addEventListener('click',function(){S.notify=S.notify===false; save(); renderSetup();});
-  $('testVoice').addEventListener('click',function(){var keep=S.voice; S.voice=true; say('5キロ予定地点です。次の5キロも5分41秒で行きましょう。'); S.voice=keep;});
+  $('chimeSw').addEventListener('click',function(){S.chime=S.chime===false; save(); renderSetup();});
+  $('testVoice').addEventListener('click',function(){audioCtx(); var keep=S.voice; S.voice=true; sayChime('5キロ予定地点です。次の5キロも5分41秒で行きましょう。'); S.voice=keep;});
 
   /* ---------- 画面切り替え ---------- */
   function show(id){['v-setup','v-ready','v-run','v-change','v-result'].forEach(function(v){$(v).classList.toggle('on',v===id);}); window.scrollTo(0,0);}
@@ -409,7 +422,7 @@ td.r,th.r{text-align:right}
   async function keepAwake(){if(NATIVE)return; try{if('wakeLock' in navigator){wakeLock=await navigator.wakeLock.request('screen'); $('wakeNote').style.display='none'; return;}}catch(e){} $('wakeNote').style.display='block';}
   document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible'&&R&&!R.finished)keepAwake();});
 
-  $('startBtn').addEventListener('click',function(){var p=plan();
+  $('startBtn').addEventListener('click',function(){audioCtx(); var p=plan();
     R={start:Date.now(),speed:S.speed,km:p.km,goal:p.goal,edges:p.edges,times:p.times,seg:p.seg,rec:{},said:{},lockUntil:0,lastTap:null,finished:false,label:dist().label,origGoal:p.goal,changes:[]}; R.race=R.start;
     save(); say('スタートしました。最初の読み上げは'+kmLabel(p.edges[0])+'キロ予定地点、'+ja(p.times[0])+'後です。'); buzz(80); keepAwake(); startRun();});
   function startRun(){show('v-run'); buildTicks(); if(tickTimer)clearInterval(tickTimer); tickTimer=setInterval(tick,250); tick();}
@@ -420,7 +433,7 @@ td.r,th.r{text-align:right}
     // 読み上げ
     for(var i=0;i<R.edges.length;i++){ if(!R.said[i]&&t>=R.times[i]){ R.said[i]=1; save();
         if(t-R.times[i]<30*R.speed){ var last=i===R.edges.length-1;
-          if(!NATIVE)say(annText(i)); buzz([60,80,60]); } } }
+          if(!NATIVE)sayChime(annText(i)); buzz([60,80,60]); } } }
     // 時間
     if(showRemain){$('timeLab').textContent='ゴール予定まで ⇄ タップで切替'; $('timeVal').textContent=(t>R.goal?'+':'')+fmt(R.goal-t,true);}
     else{$('timeLab').textContent='経過時間 ⇄ タップで切替'; $('timeVal').textContent=fmt(t,true);}

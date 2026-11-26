@@ -21,7 +21,7 @@ class KoepaceRunnerModule : Module() {
     Name("KoepaceRunner")
 
     // 予定時刻の一覧を渡して、裏で読み上げを始める（走行中に呼べば予定を差し替える）
-    Function("start") { startAtMs: Double, offsetsMs: List<Double>, texts: List<String>, titles: List<String>, bodies: List<String>, voice: Boolean, notify: Boolean, raceId: Double, points: List<Int> ->
+    Function("start") { startAtMs: Double, offsetsMs: List<Double>, texts: List<String>, titles: List<String>, bodies: List<String>, voice: Boolean, notify: Boolean, raceId: Double, points: List<Int>, chime: Boolean ->
       val intent = Intent(context, RunnerService::class.java).apply {
         action = RunnerService.ACTION_START
         putExtra(RunnerService.EXTRA_START_AT, startAtMs.toLong())
@@ -33,6 +33,7 @@ class KoepaceRunnerModule : Module() {
         putExtra(RunnerService.EXTRA_NOTIFY, notify)
         putExtra(RunnerService.EXTRA_RACE, raceId.toLong())
         putExtra(RunnerService.EXTRA_POINTS, points.toIntArray())
+        putExtra(RunnerService.EXTRA_CHIME, chime)
       }
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
         context.startForegroundService(intent)
@@ -53,11 +54,11 @@ class KoepaceRunnerModule : Module() {
     }
 
     // 画面を見ているときの読み上げ（「スタートしました」など）
-    Function("speak") { text: String ->
+    Function("speak") { text: String, chime: Boolean ->
       val ctx = context
       main.post {
         val sp = speaker ?: Speaker(ctx).also { speaker = it }
-        sp.speak(text)
+        sp.speak(text, chime)
       }
       Unit
     }

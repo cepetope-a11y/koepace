@@ -1,21 +1,19 @@
 {
   "expo": {
-    "name": "コエペース",
+    "name": "KoePacer",
     "slug": "koepace",
-    "version": "0.8.0",
+    "version": "0.9.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
-    "userInterfaceStyle": "dark",
+    "icon": "./assets/icon/icon-1024.png",
+    "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.cepetope.koepace"
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "foregroundImage": "./assets/icon/adaptive-foreground.png",
+        "backgroundColor": "#0F1A30"
       },
       "predictiveBackGestureEnabled": false,
       "package": "com.cepetope.koepace"

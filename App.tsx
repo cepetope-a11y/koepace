@@ -1,7 +1,7 @@
 // コエペース：ウェブ試作と同じ画面をアプリの中で表示し、読み上げだけをアプリの常駐サービスに任せる
 // 画面（設定・走行・結果）は web/index.html。読み上げと時計は modules/koepace-runner（画面が消えても動く）
 import { useEffect, useRef, useState } from 'react';
-import { AppState, PermissionsAndroid, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { AppState, PermissionsAndroid, useColorScheme, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView, WebViewMessageEvent } from 'react-native-webview';
@@ -20,6 +20,7 @@ type ScheduleMsg = {
   items?: { ms: number; text: string; title?: string; body?: string; point?: number }[];
 };
 type SayMsg = { type: 'say'; text: string; chime?: boolean };
+type ThemeMsg = { type: 'theme'; dark: boolean };
 
 async function askNotification() {
   if (Platform.OS === 'android' && Number(Platform.Version) >= 33) {
@@ -32,6 +33,7 @@ async function askNotification() {
 function Main() {
   const insets = useSafeAreaInsets();
   const [batteryTip, setBatteryTip] = useState(false);
+  const [dark, setDark] = useState(useColorScheme() === 'dark');
   const [error, setError] = useState(Runner ? '' : '裏で動く部分（KoepaceRunner）がアプリに入っていません');
   const asked = useRef(false);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -59,13 +61,17 @@ function Main() {
 
   async function onMessage(e: WebViewMessageEvent) {
     if (!Runner) return;
-    let m: ScheduleMsg | SayMsg;
+    let m: ScheduleMsg | SayMsg | ThemeMsg;
     try {
       m = JSON.parse(e.nativeEvent.data);
     } catch {
       return;
     }
     try {
+      if (m.type === 'theme') {
+        setDark(!!m.dark);
+        return;
+      }
       if (m.type === 'say') {
         Runner.speak(m.text, !!m.chime);
       } else if (m.type === 'schedule') {
@@ -97,8 +103,8 @@ function Main() {
   }
 
   return (
-    <View style={[styles.root, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-      <StatusBar style="light" />
+    <View style={[styles.root, { paddingTop: insets.top, paddingBottom: insets.bottom, backgroundColor: dark ? '#0B1220' : '#E6E3DE' }]}>
+      <StatusBar style={dark ? 'light' : 'dark'} />
       {error !== '' && <Text style={styles.err}>エラー：{error}</Text>}
       {batteryTip && (
         <View style={styles.tip}>
@@ -148,7 +154,7 @@ export default function App() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#111827' },
-  web: { flex: 1, backgroundColor: '#111827' },
+  web: { flex: 1, backgroundColor: 'transparent' },
   err: { color: '#FCA5A5', padding: 12, fontSize: 14 },
   tip: { backgroundColor: '#1F2937', padding: 12, gap: 8 },
   tipText: { color: '#FFFFFF', fontSize: 14, lineHeight: 20 },

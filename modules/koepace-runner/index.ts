@@ -9,7 +9,18 @@ export type RunnerLogItem = {
 };
 
 type RunnerModule = {
-  start(startAtMs: number, offsetsMs: number[], texts: string[], titles: string[], bodies: string[], voice: boolean, notify: boolean, raceId: number, points: number[], chime: boolean): void;
+  start(opts: {
+    startAt: number;
+    offsets: number[];
+    texts: string[];
+    titles: string[];
+    bodies: string[];
+    voice: boolean;
+    notify: boolean;
+    raceId: number;
+    points: number[];
+    chime: boolean;
+  }): void;
   /** [押された時刻(ms), 予定地点の番号] の一覧 */
   takeArrivals(): [number, number][];
   stop(): void;

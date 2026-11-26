@@ -81,18 +81,18 @@ function Main() {
             asked.current = true;
             await askNotification();
           }
-          Runner.start(
-            m.start,
-            m.items.map((i) => i.ms),
-            m.items.map((i) => i.text),
-            m.items.map((i) => i.title ?? i.text),
-            m.items.map((i) => i.body ?? ''),
-            !!m.voice,
-            m.notify !== false,
-            m.race ?? m.start,
-            m.items.map((i) => i.point ?? -1),
-            m.chime !== false,
-          );
+          Runner.start({
+            startAt: m.start,
+            offsets: m.items.map((i) => i.ms),
+            texts: m.items.map((i) => i.text),
+            titles: m.items.map((i) => i.title ?? i.text),
+            bodies: m.items.map((i) => i.body ?? ''),
+            voice: !!m.voice,
+            notify: m.notify !== false,
+            raceId: m.race ?? m.start,
+            points: m.items.map((i) => i.point ?? -1),
+            chime: m.chime !== false,
+          });
         } else {
           Runner.stop();
         }

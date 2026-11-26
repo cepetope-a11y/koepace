@@ -21,19 +21,26 @@ class KoepaceRunnerModule : Module() {
     Name("KoepaceRunner")
 
     // 予定時刻の一覧を渡して、裏で読み上げを始める（走行中に呼べば予定を差し替える）
-    Function("start") { startAtMs: Double, offsetsMs: List<Double>, texts: List<String>, titles: List<String>, bodies: List<String>, voice: Boolean, notify: Boolean, raceId: Double, points: List<Int>, chime: Boolean ->
+    // 予定時刻の一覧を渡して、裏で読み上げを始める（走行中に呼べば予定を差し替える）
+    // 引数が多いので1つのまとまり（opts）で受け取る（Expoの関数は引数8個まで）
+    Function("start") { opts: Map<String, Any?> ->
+      fun num(k: String): Double = (opts[k] as? Number)?.toDouble() ?: 0.0
+      fun bool(k: String, d: Boolean): Boolean = (opts[k] as? Boolean) ?: d
+      fun nums(k: String): List<Double> = (opts[k] as? List<*>)?.map { (it as? Number)?.toDouble() ?: 0.0 } ?: emptyList()
+      fun strs(k: String): List<String> = (opts[k] as? List<*>)?.map { it?.toString() ?: "" } ?: emptyList()
+      val startAtMs = num("startAt")
       val intent = Intent(context, RunnerService::class.java).apply {
         action = RunnerService.ACTION_START
         putExtra(RunnerService.EXTRA_START_AT, startAtMs.toLong())
-        putExtra(RunnerService.EXTRA_OFFSETS, offsetsMs.map { it.toLong() }.toLongArray())
-        putExtra(RunnerService.EXTRA_TEXTS, texts.toTypedArray())
-        putExtra(RunnerService.EXTRA_TITLES, titles.toTypedArray())
-        putExtra(RunnerService.EXTRA_BODIES, bodies.toTypedArray())
-        putExtra(RunnerService.EXTRA_VOICE, voice)
-        putExtra(RunnerService.EXTRA_NOTIFY, notify)
-        putExtra(RunnerService.EXTRA_RACE, raceId.toLong())
-        putExtra(RunnerService.EXTRA_POINTS, points.toIntArray())
-        putExtra(RunnerService.EXTRA_CHIME, chime)
+        putExtra(RunnerService.EXTRA_OFFSETS, nums("offsets").map { it.toLong() }.toLongArray())
+        putExtra(RunnerService.EXTRA_TEXTS, strs("texts").toTypedArray())
+        putExtra(RunnerService.EXTRA_TITLES, strs("titles").toTypedArray())
+        putExtra(RunnerService.EXTRA_BODIES, strs("bodies").toTypedArray())
+        putExtra(RunnerService.EXTRA_VOICE, bool("voice", true))
+        putExtra(RunnerService.EXTRA_NOTIFY, bool("notify", true))
+        putExtra(RunnerService.EXTRA_RACE, (if (opts["raceId"] is Number) num("raceId") else startAtMs).toLong())
+        putExtra(RunnerService.EXTRA_POINTS, nums("points").map { it.toInt() }.toIntArray())
+        putExtra(RunnerService.EXTRA_CHIME, bool("chime", true))
       }
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
         context.startForegroundService(intent)

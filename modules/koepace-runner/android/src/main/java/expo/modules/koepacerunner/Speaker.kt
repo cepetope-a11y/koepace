@@ -54,7 +54,7 @@ class Speaker(context: Context) {
     }
   }
 
-  /** 読み上げる。音楽アプリに音量を下げてもらえたら true。chime=true なら先に「ピン！」を鳴らす */
+  /** 読み上げる。音楽アプリに音量を下げてもらえたら true。chime=true なら先に「ピロン♪」を鳴らす */
   fun speak(text: String, chime: Boolean = false): Boolean {
     counter += 1
     val id = "u$counter"
@@ -75,11 +75,11 @@ class Speaker(context: Context) {
     return speakNow(text, id)
   }
 
-  /** 予定地点の合図「ピン！」（高めの短い音1つ）。鳴らす長さ(ms)を返す */
+  /** 予定地点の合図「ピロン♪」（低い音→高い音）。鳴らす長さ(ms)を返す */
   private fun playChime(): Long {
     val rate = 22050
-    val notes = listOf(Triple(1568.0, 0.16, 0.0)) // 周波数, 長さ(秒), 始まり(秒)
-    val total = 0.18
+    val notes = listOf(Triple(988.0, 0.11, 0.0), Triple(1319.0, 0.26, 0.13)) // 周波数, 長さ(秒), 始まり(秒)
+    val total = 0.42
     val n = (rate * total).toInt()
     val pcm = ShortArray(n)
     for ((f, len, start) in notes) {
@@ -90,7 +90,7 @@ class Speaker(context: Context) {
         if (k >= n) break
         val t = i.toDouble() / rate
         val attack = (t / 0.008).coerceAtMost(1.0)
-        val decay = Math.exp(-t * 18.0)
+        val decay = Math.exp(-t * 9.0)
         val v = Math.sin(2 * Math.PI * f * t) * attack * decay * 0.55
         val mixed = pcm[k] + (v * Short.MAX_VALUE).toInt()
         pcm[k] = mixed.coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()

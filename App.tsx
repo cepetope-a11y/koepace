@@ -138,8 +138,8 @@ function Main() {
         <View style={styles.tip}>
           <Text style={styles.tipText}>
             {en
-              ? 'To keep calls going with the screen off, exclude KoePacer from battery optimization.'
-              : '画面を消しても止まらないように、KoePacerを「電池の最適化」から外してください。'}
+              ? 'To keep calls going with the screen off, open App info → Battery and choose "Unrestricted".'
+              : '画面を消しても止まらないように、アプリ情報の「バッテリー（電池）」で「制限なし」を選んでください。'}
           </Text>
           <View style={styles.tipRow}>
             <Pressable

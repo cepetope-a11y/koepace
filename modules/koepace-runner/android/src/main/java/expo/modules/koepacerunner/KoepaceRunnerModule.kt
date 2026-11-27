@@ -115,11 +115,12 @@ class KoepaceRunnerModule : Module() {
       pm?.isIgnoringBatteryOptimizations(context.packageName) ?: true
     }
 
-    // 「電池の最適化を外す」確認画面を開く
+    // このアプリの「アプリ情報」を開く（電池 → 制限なし を選んでもらう）
+    // ※ Google Playの方針で、確認画面を直接出す権限（REQUEST_IGNORE_BATTERY_OPTIMIZATIONS）は使わない
     Function("openBatterySettings") {
       val ctx = context
       try {
-        val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
           data = Uri.parse("package:" + ctx.packageName)
           addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }

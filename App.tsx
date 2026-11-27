@@ -1,7 +1,7 @@
 // コエペース：ウェブ試作と同じ画面をアプリの中で表示し、読み上げだけをアプリの常駐サービスに任せる
 // 画面（設定・走行・結果）は web/index.html。読み上げと時計は modules/koepace-runner（画面が消えても動く）
 import { useEffect, useRef, useState } from 'react';
-import { AppState, BackHandler, PermissionsAndroid, useColorScheme, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { AppState, BackHandler, Linking, PermissionsAndroid, useColorScheme, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView, WebViewMessageEvent } from 'react-native-webview';
@@ -22,7 +22,7 @@ type ScheduleMsg = {
 };
 type SayMsg = { type: 'say'; text: string; chime?: boolean };
 type ThemeMsg = { type: 'theme'; dark: boolean };
-type UiMsg = { type: 'battery' } | { type: 'sheet'; open: boolean } | { type: 'lang'; lang: string };
+type UiMsg = { type: 'open'; url: string } | { type: 'battery' } | { type: 'sheet'; open: boolean } | { type: 'lang'; lang: string };
 
 async function askNotification() {
   if (Platform.OS === 'android' && Number(Platform.Version) >= 33) {
@@ -84,6 +84,11 @@ function Main() {
     try {
       if (m.type === 'sheet') {
         sheetOpen.current = !!m.open;
+        return;
+      }
+      if (m.type === 'open') {
+        // ポリシーとメールだけ開く（ほかのアドレスは開かない）
+        if (/^(https:\/\/makatomakerapps\.github\.io\/|mailto:makatomakerapps@gmail\.com)/.test(m.url)) Linking.openURL(m.url).catch(() => {});
         return;
       }
       if (m.type === 'lang') {

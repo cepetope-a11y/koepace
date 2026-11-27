@@ -2,7 +2,7 @@
   "expo": {
     "name": "KoePacer",
     "slug": "koepace",
-    "version": "0.11.2",
+    "version": "0.11.3",
     "orientation": "portrait",
     "icon": "./assets/icon/icon-1024.png",
     "userInterfaceStyle": "automatic",

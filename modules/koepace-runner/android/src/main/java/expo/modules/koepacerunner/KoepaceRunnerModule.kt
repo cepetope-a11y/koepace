@@ -41,6 +41,7 @@ class KoepaceRunnerModule : Module() {
         putExtra(RunnerService.EXTRA_RACE, (if (opts["raceId"] is Number) num("raceId") else startAtMs).toLong())
         putExtra(RunnerService.EXTRA_POINTS, nums("points").map { it.toInt() }.toIntArray())
         putExtra(RunnerService.EXTRA_CHIME, bool("chime", true))
+        putExtra(RunnerService.EXTRA_LANG, (opts["lang"] as? String) ?: KoeLang.lang)
       }
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
         context.startForegroundService(intent)
@@ -57,6 +58,12 @@ class KoepaceRunnerModule : Module() {
         }
         context.startService(intent)
       }
+      Unit
+    }
+
+    // 言語（"ja" / "en"）：読み上げの声と通知の文言
+    Function("setLang") { lang: String ->
+      KoeLang.lang = if (lang == "en") "en" else "ja"
       Unit
     }
 

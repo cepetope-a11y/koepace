@@ -6,7 +6,7 @@ const html = fs.readFileSync(path.join(__dirname, '..', 'web', 'index.html'), 'u
 function grab(start, end) { const i = html.indexOf(start); const j = html.indexOf(end, i); if (i < 0 || j < 0) throw new Error('見つからない: ' + start); return html.slice(i, j); }
 const src = grab('  var DISTS=', '  var R=null;') +
   grab('  function dist(){', '  /* ---------- 声') +
-  'return {S:S, DISTS:DISTS, plan:plan, segPlan:segPlan, kmSchedule:kmSchedule, clockAt:clockAt, gunStartMs:gunStartMs};';
+  'return {S:S, DISTS:DISTS, plan:plan, segPlan:segPlan, kmSchedule:kmSchedule, clockAt:clockAt, gunStartMs:gunStartMs, setLang:function(l){LANG=l;}};';
 const mk = () => new Function(src)();
 
 let fails = 0, checks = 0;
@@ -108,6 +108,12 @@ for (const id of ['full', 'half', '10k', 'custom']) {
   ok(m.gunStartMs(T(30, 3, 0), '22:00', 20 * H) === T(29, 22, 0), '号砲 夜スタートで日付をまたいだ');
   ok(m.gunStartMs(T(29, 9, 0), '09:00', 4 * H) === T(29, 9, 0), '号砲 ちょうど今');
   ok(m.gunStartMs(T(29, 9, 0), '', 4 * H) === null && m.gunStartMs(T(29, 9, 0), 'abc', 4 * H) === null, '号砲 未入力');
+}
+// 英語表示の時刻（日付またぎ）
+{ const m = mk(); m.setLang('en'); const b = new Date(2026, 10, 29, 9, 0, 0).getTime();
+  ok(m.clockAt(b, 4 * 3600 + 5 * 60 + 30, true) === '13:05:30', 'EN 時刻');
+  ok(m.clockAt(b, 15 * 3600) === '0:00 (+1d)', 'EN 日付またぎ');
+  ok(m.clockAt(b, 40 * 3600) === '1:00 (+2d)', 'EN 2日後');
 }
 console.log(`チェック ${checks}件、失敗 ${fails}件`);
 process.exit(fails ? 1 : 0);

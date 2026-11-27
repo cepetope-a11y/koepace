@@ -3,7 +3,7 @@ const { chromium } = require('/opt/node-tools/node_modules/playwright');
 const path = require('path');
 let fails = 0, checks = 0; const ok = (c, m) => { checks++; if (!c) { fails++; console.log('NG:', m); } };
 (async () => {
-  const b = await chromium.launch(); const pg = await b.newPage({ viewport: { width: 420, height: 900 } });
+  const b = await chromium.launch(); const pg = await b.newPage({ viewport: { width: 420, height: 900 }, locale: 'ja-JP' });
   pg.on('pageerror', e => { fails++; console.log('ERR', e.message); });
   await pg.addInitScript(() => { window.__m = []; window.ReactNativeWebView = { postMessage: (s) => window.__m.push(JSON.parse(s)) }; });
   await pg.goto('file://' + path.join(__dirname, '..', 'web', 'index.html'));

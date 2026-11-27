@@ -15,13 +15,14 @@ type ScheduleMsg = {
   lock?: boolean;
   notify?: boolean;
   chime?: boolean;
+  lang?: string;
   start?: number;
   race?: number;
   items?: { ms: number; text: string; title?: string; body?: string; point?: number }[];
 };
 type SayMsg = { type: 'say'; text: string; chime?: boolean };
 type ThemeMsg = { type: 'theme'; dark: boolean };
-type UiMsg = { type: 'battery' } | { type: 'sheet'; open: boolean };
+type UiMsg = { type: 'battery' } | { type: 'sheet'; open: boolean } | { type: 'lang'; lang: string };
 
 async function askNotification() {
   if (Platform.OS === 'android' && Number(Platform.Version) >= 33) {
@@ -35,6 +36,7 @@ function Main() {
   const insets = useSafeAreaInsets();
   const [batteryTip, setBatteryTip] = useState(false);
   const [dark, setDark] = useState(useColorScheme() === 'dark');
+  const [en, setEn] = useState(false);
   const [error, setError] = useState(Runner ? '' : '裏で動く部分（KoepaceRunner）がアプリに入っていません');
   const asked = useRef(false);
   const sheetOpen = useRef(false);
@@ -84,6 +86,11 @@ function Main() {
         sheetOpen.current = !!m.open;
         return;
       }
+      if (m.type === 'lang') {
+        setEn(m.lang === 'en');
+        Runner.setLang(m.lang === 'en' ? 'en' : 'ja');
+        return;
+      }
       if (m.type === 'battery') {
         Runner.openBatterySettings();
         return;
@@ -112,6 +119,7 @@ function Main() {
             raceId: m.race ?? m.start,
             points: m.items.map((i) => i.point ?? -1),
             chime: m.chime !== false,
+            lang: m.lang === 'en' ? 'en' : 'ja',
           });
         } else {
           Runner.stop();
@@ -129,7 +137,9 @@ function Main() {
       {batteryTip && (
         <View style={styles.tip}>
           <Text style={styles.tipText}>
-            画面を消しても止まらないように、コエペースを「電池の最適化」から外してください。
+            {en
+              ? 'To keep calls going with the screen off, exclude KoePacer from battery optimization.'
+              : '画面を消しても止まらないように、KoePacerを「電池の最適化」から外してください。'}
           </Text>
           <View style={styles.tipRow}>
             <Pressable
@@ -140,10 +150,10 @@ function Main() {
                 setBatteryTip(false);
               }}
             >
-              <Text style={styles.tipBtnText}>設定する</Text>
+              <Text style={styles.tipBtnText}>{en ? 'Settings' : '設定する'}</Text>
             </Pressable>
             <Pressable style={styles.tipLater} accessibilityRole="button" onPress={() => setBatteryTip(false)}>
-              <Text style={styles.tipLaterText}>あとで</Text>
+              <Text style={styles.tipLaterText}>{en ? 'Later' : 'あとで'}</Text>
             </Pressable>
           </View>
         </View>

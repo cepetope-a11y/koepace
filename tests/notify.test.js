@@ -6,7 +6,7 @@ const toSec = (s) => { const p = s.split(':').map(Number); return p.length === 3
 (async () => {
   const b = await chromium.launch();
   for (const [dist, km, interval, profile] of [['フル', 42.195, '5kmごと', '均等'], ['フル', 42.195, '1kmごと', '前半抑えめ'], ['ハーフ', 21.0975, '5kmごと', '前半貯金'], ['10km', 10, '1kmごと', '均等']]) {
-    const pg = await b.newPage({ viewport: { width: 420, height: 900 } });
+    const pg = await b.newPage({ viewport: { width: 420, height: 900 }, locale: 'ja-JP' });
     pg.on('pageerror', e => { fails++; console.log('ERR', e.message); });
     await pg.addInitScript(() => { window.__m = []; window.ReactNativeWebView = { postMessage: (s) => window.__m.push(JSON.parse(s)) }; });
     await pg.goto('file://' + path.join(__dirname, '..', 'web', 'index.html'));

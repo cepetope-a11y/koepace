@@ -37,6 +37,7 @@ class RunnerService : Service() {
     const val EXTRA_POINTS = "points"
     const val EXTRA_POINT = "point"
     const val EXTRA_CHIME = "chime"
+    const val EXTRA_LANG = "lang"
     const val ACTION_ARRIVED = "expo.modules.koepacerunner.ARRIVED"
 
     private const val CHANNEL_ID = "koepace_run"
@@ -125,7 +126,7 @@ class RunnerService : Service() {
       if (running && now - lastArrivalAt > 60_000L) {
         lastArrivalAt = now
         addArrival(now, intent.getIntExtra(EXTRA_POINT, -1))
-        if (voiceOn) speaker?.speak("着いたことを記録しました。")
+        if (voiceOn) speaker?.speak(KoeLang.t("着いたことを記録しました。", "Arrival recorded."))
         val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         nm.cancel(POINT_NOTIFICATION_ID)
       }
@@ -153,6 +154,7 @@ class RunnerService : Service() {
     voiceOn = intent.getBooleanExtra(EXTRA_VOICE, true)
     notifyOn = intent.getBooleanExtra(EXTRA_NOTIFY, true)
     chimeOn = intent.getBooleanExtra(EXTRA_CHIME, true)
+    KoeLang.lang = intent.getStringExtra(EXTRA_LANG) ?: KoeLang.lang
 
     // 一時停止から再開するとスタート時刻はずれるが、同じレース（raceId）なら記録は消さない
     if (!running || newRace != raceId) {
@@ -195,7 +197,7 @@ class RunnerService : Service() {
   private fun showForeground() {
     val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-      val channel = NotificationChannel(CHANNEL_ID, "計測中の表示", NotificationManager.IMPORTANCE_LOW)
+      val channel = NotificationChannel(CHANNEL_ID, KoeLang.t("計測中の表示", "Timing in progress"), NotificationManager.IMPORTANCE_LOW)
       channel.setShowBadge(false)
       nm.createNotificationChannel(channel)
     }
@@ -215,8 +217,8 @@ class RunnerService : Service() {
       Notification.Builder(this)
     }
     val notification = builder
-      .setContentTitle("コエペース 計測中")
-      .setContentText("予定の時刻になったら声でお知らせします")
+      .setContentTitle(KoeLang.t("KoePacer 計測中", "KoePacer · timing"))
+      .setContentText(KoeLang.t("予定の時刻になったら声でお知らせします", "Calls out each point at its planned time"))
       .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
       .setOngoing(true)
       .setContentIntent(content)
@@ -233,7 +235,7 @@ class RunnerService : Service() {
   private fun postPoint(title: String, body: String, point: Int) {
     val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-      val ch = NotificationChannel(POINT_CHANNEL_ID, "予定地点のお知らせ", NotificationManager.IMPORTANCE_HIGH)
+      val ch = NotificationChannel(POINT_CHANNEL_ID, KoeLang.t("予定地点のお知らせ", "Planned point alerts"), NotificationManager.IMPORTANCE_HIGH)
       ch.enableVibration(true)
       ch.vibrationPattern = longArrayOf(0, 250, 150, 250)
       ch.setSound(null, null)
@@ -255,7 +257,7 @@ class RunnerService : Service() {
       @Suppress("DEPRECATION")
       Notification.Builder(this).setPriority(Notification.PRIORITY_HIGH).setVibrate(longArrayOf(0, 250, 150, 250))
     }
-    val action = Notification.Action.Builder(null as android.graphics.drawable.Icon?, "着いた", arrived).build()
+    val action = Notification.Action.Builder(null as android.graphics.drawable.Icon?, KoeLang.t("着いた", "Reached"), arrived).build()
     val n = builder
       .setContentTitle(title)
       .setContentText(body)

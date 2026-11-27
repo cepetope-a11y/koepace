@@ -26,6 +26,7 @@ class Speaker(context: Context) {
   private var focusRequest: AudioFocusRequest? = null
   private var speaking = 0
   private var counter = 0
+  private var voiceLang = ""
 
   private val attrs: AudioAttributes = AudioAttributes.Builder()
     .setUsage(AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)
@@ -36,7 +37,7 @@ class Speaker(context: Context) {
     tts = TextToSpeech(appContext) { status ->
       handler.post {
         if (status == TextToSpeech.SUCCESS) {
-          tts?.setLanguage(Locale.JAPANESE)
+          tts?.setLanguage(KoeLang.locale()); voiceLang = KoeLang.lang
           tts?.setAudioAttributes(attrs)
           tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
             override fun onStart(utteranceId: String?) {}
@@ -120,6 +121,7 @@ class Speaker(context: Context) {
   }
 
   private fun speakNow(text: String, id: String): Boolean {
+    if (voiceLang != KoeLang.lang) { tts?.setLanguage(KoeLang.locale()); voiceLang = KoeLang.lang }
     val granted = requestFocus()
     speaking += 1
     tts?.speak(text, TextToSpeech.QUEUE_ADD, null, id)

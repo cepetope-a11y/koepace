@@ -6,7 +6,7 @@ const html = fs.readFileSync(path.join(__dirname, '..', 'web', 'index.html'), 'u
 function grab(start, end) { const i = html.indexOf(start); const j = html.indexOf(end, i); if (i < 0 || j < 0) throw new Error('見つからない: ' + start); return html.slice(i, j); }
 const src = grab('  var DISTS=', '  var R=null;') +
   grab('  function dist(){', '  /* ---------- 声') +
-  'return {S:S, DISTS:DISTS, plan:plan, segPlan:segPlan};';
+  'return {S:S, DISTS:DISTS, plan:plan, segPlan:segPlan, kmSchedule:kmSchedule, clockAt:clockAt};';
 const mk = () => new Function(src)();
 
 let fails = 0, checks = 0;
@@ -61,6 +61,42 @@ for (const id of ['full', 'half', '10k', 'custom']) {
       }
     }
   }
+}
+
+// 1kmごとのタイムスケジュール：読み上げ間隔1kmの計画と同じ時刻になるか、ゴールは計画の合計か
+for (const id of ['full', 'half', '10k', 'custom']) {
+  for (const customKm of (id === 'custom' ? [1, 1.5, 3.3, 30, 42.195, 100, 120, 200] : [0])) {
+    for (const profile of ['even', 'neg', 'pos']) {
+      for (const paceSec of [180, 300, 420, 600, 1200]) {
+        for (const adjCase of [0, 1]) {
+          const m = mk(); const S = m.S;
+          S.dist = id; S.customKm = customKm; S.profile = profile; S.interval = 5;
+          const km = id === 'custom' ? customKm : m.DISTS.find(d => d.id === id).km;
+          S.goal = Math.round(paceSec * km); S.adj = adjCase ? { 0: 10, 3: -5 } : {};
+          const ks = m.kmSchedule(); const p5 = m.plan(); S.interval = 1; const p1 = m.plan();
+          const tag = `スケジュール ${id} ${customKm||''}km ${profile} ${paceSec}s adj${adjCase}`;
+          ok(ks.edges.length === p1.edges.length, tag + ' 地点の数が違う');
+          for (let i = 0; i < ks.edges.length; i++) {
+            ok(Math.abs(ks.edges[i] - p1.edges[i]) < 1e-9, tag + ` 地点${i}の距離が違う`);
+            ok(Math.abs(ks.times[i] - p1.times[i]) < 1e-6, tag + ` 地点${i}の時刻が違う`);
+            if (i) ok(ks.times[i] > ks.times[i - 1], tag + ` 時刻が増えていない${i}`);
+          }
+          ok(Math.abs(ks.times[ks.times.length - 1] - p5.goal) < 1e-6, tag + ' ゴールが計画の合計と違う');
+          // 5kmごとの読み上げ地点は、1kmごとの表の時刻と一致
+          p5.edges.forEach((e, j) => { const k = ks.edges.findIndex(x => Math.abs(x - e) < 1e-9); ok(k >= 0 && Math.abs(ks.times[k] - p5.times[j]) < 1e-6, tag + ` 読み上げ地点${e}kmが表と違う`); });
+        }
+      }
+    }
+  }
+}
+// 時刻の表示
+{ const m = mk(); const b = new Date(2026, 10, 29, 9, 0, 0).getTime();
+  ok(m.clockAt(b, 0, true) === '9:00:00', '時刻 0秒');
+  ok(m.clockAt(b, 4 * 3600 + 5 * 60 + 30, true) === '13:05:30', '時刻 4:05:30後');
+  ok(m.clockAt(b, 4 * 3600 + 5 * 60 + 30) === '13:05', '時刻 分まで');
+  ok(m.clockAt(b, 15 * 3600) === '翌0:00', '時刻 日付またぎ');
+  ok(m.clockAt(b, 40 * 3600) === '2日後 1:00', '時刻 2日後');
+  ok(m.clockAt(new Date(2026, 10, 29, 5, 30).getTime(), 13 * 3600 + 59 * 60 + 59.6, true) === '19:30:00', '時刻 秒の四捨五入');
 }
 console.log(`チェック ${checks}件、失敗 ${fails}件`);
 process.exit(fails ? 1 : 0);

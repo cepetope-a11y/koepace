@@ -43,8 +43,8 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      - name: Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Android SDK（GitHub の機械に入っているものを使う）
+        run: echo "ANDROID_HOME=$ANDROID_HOME" && ls "$ANDROID_HOME"
 
       - name: EAS CLI（Expo にログイン）
         uses: expo/expo-github-action@v8

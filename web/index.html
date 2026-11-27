@@ -152,7 +152,7 @@ td{border-bottom:1px solid var(--hair)}
 <section id="v-setup" class="view on" aria-labelledby="t-setup">
   <div>
     <div class="row"><h1 id="t-setup" class="logo">KoePacer</h1><button class="gear" type="button" data-open-settings aria-label="設定"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button></div>
-    <p class="sub">GPSは使わず、時間だけで「◯km予定地点です」と読み上げます。画面をつけたまま使ってください。</p>
+    <p class="sub" id="lead"></p>
   </div>
 
   <div class="card">
@@ -224,10 +224,10 @@ td{border-bottom:1px solid var(--hair)}
     <ul class="sub" style="padding-left:18px;margin:0">
       <li>号砲が鳴ったら「スタート」をタップ</li>
       <li>スタートラインで押すとネットタイム基準</li>
-      <li>画面はつけたまま（この試作は画面が消えると止まることがあります）</li>
+      <li id="screenTip"></li>
     </ul>
   </div>
-  <p class="note" id="savedNote" style="display:none">設定を保存しました。当日このページを開くと、この画面から始まります（同じスマホ・同じブラウザで開いてください）。</p>
+  <p class="note" id="savedNote" style="display:none"></p>
   <button class="big go" type="button" id="startBtn" style="min-height:120px;font-size:40px;border-radius:24px">スタート</button>
   <div class="card">
     <h2>号砲の時刻からスタート</h2>
@@ -567,7 +567,13 @@ td{border-bottom:1px solid var(--hair)}
       el.setAttribute('aria-label',LANG==='en'&&EN_UI[k]?EN_UI[k]:k);});
     document.documentElement.lang=LANG;}
   function detectLang(){var l=''; try{l=(navigator.languages&&navigator.languages[0])||navigator.language||'';}catch(e){} return /^ja/i.test(l)?'ja':'en';}
-  function setLang(){LANG=(S.lang==='ja'||S.lang==='en')?S.lang:detectLang(); applyStatic(); if(NATIVE)post({type:'lang',lang:LANG});}
+  function setLang(){LANG=(S.lang==='ja'||S.lang==='en')?S.lang:detectLang(); applyStatic(); renderLead(); if(NATIVE)post({type:'lang',lang:LANG});}
+  // 一番上の説明：アプリは画面を消しても動く。ウェブ版は画面をつけている間だけ
+  function renderLead(){$('lead').textContent=NATIVE
+    ?tr('GPSを使わず、時間だけで「10km予定地点です」と声でお知らせします。画面を消しても、音楽を聴きながらでも使えます。','No GPS. Using time alone, it calls out where you should be on your plan — even with the screen off or music playing.')
+    :tr('GPSを使わず、時間だけで「10km予定地点です」と声でお知らせします。このウェブ版は、画面をつけている間だけ読み上げます。','No GPS. Using time alone, it calls out where you should be on your plan. This web version speaks only while the screen is on.');
+    $('screenTip').textContent=NATIVE?tr('画面は消してOK。音楽を聴きながらでも読み上げます','Screen off is fine. Calls play even over music'):tr('画面はつけたまま（このウェブ版は画面が消えると止まります）','Keep the screen on (this web version stops when the screen turns off)');
+    $('savedNote').textContent=NATIVE?tr('設定を保存しました。当日アプリを開くと、この画面から始まります。','Settings saved. Open the app on race day to start from here.'):tr('設定を保存しました。当日このページを開くと、この画面から始まります（同じスマホ・同じブラウザで開いてください）。','Settings saved. Open this page on race day to start here (same phone and browser).');}
   function raceLabel(){if(!R)return ''; if(R.distId==='custom')return dU(R.km); var d=DISTS.find(function(x){return x.id===R.distId;}); return d?tr(d.label,d.en):R.label;}
   function applyUnitText(){var mi=isMi();
     document.querySelectorAll('[data-u="p"]').forEach(function(e){e.textContent=pu();}); document.querySelectorAll('[data-u="d"]').forEach(function(e){e.textContent=mi?'mi':'km';});
@@ -586,7 +592,7 @@ td{border-bottom:1px solid var(--hair)}
     if(v==='v-ready')openReady(); if(R&&!R.finished){if(R.pausedAt)renderPause(); tick(); if(v==='v-change')renderChange();} if(R&&R.finished)renderResult(); lastSync=''; syncNative();}
 
   /* ---------- 設定（⚙） ---------- */
-  var VER='0.11.1';
+  var VER='0.11.2';
   function openSettings(){renderLangPills(); $('speedCard').style.display=R?'none':'flex'; $('verTxt').textContent=VER; $('sheet').hidden=false; $('sheet').scrollTop=0; if(NATIVE)post({type:'sheet',open:true});}
   function closeSettings(){$('sheet').hidden=true; if(NATIVE)post({type:'sheet',open:false});}
   document.addEventListener('click',function(e){if(e.target.closest('[data-open-settings]'))openSettings();});
@@ -599,7 +605,7 @@ td{border-bottom:1px solid var(--hair)}
   function openReady(){var p=plan(); $('rChip').textContent=tr(dist().label,dist().en)+tr(' ・ 目標 ',' · Goal ')+fmt(S.goal,true);
     $('rPace').textContent=tr('平均 ','Avg ')+fmt(pv(p.goal/p.km))+' '+pu(); $('rFirstKm').textContent=dB(p.edges[0]); $('rFirstT').textContent=fmt(p.times[0],p.times[0]>=3600); show('v-ready'); renderGun();
     try{speechSynthesis.getVoices();}catch(e){} }
-  $('toReady').addEventListener('click',function(){S.ready=true; S.savedAt=Date.now(); save(); openReady(); $('savedNote').style.display='block';});
+  $('toReady').addEventListener('click',function(){S.ready=true; S.savedAt=Date.now(); save(); openReady(); renderLead(); $('savedNote').style.display='block';});
   $('backSetup').addEventListener('click',function(){S.ready=false; save(); show('v-setup'); renderSetup();});
 
   /* ---------- レース ---------- */

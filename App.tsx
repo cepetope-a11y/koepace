@@ -1,7 +1,7 @@
 // コエペース：ウェブ試作と同じ画面をアプリの中で表示し、読み上げだけをアプリの常駐サービスに任せる
 // 画面（設定・走行・結果）は web/index.html。読み上げと時計は modules/koepace-runner（画面が消えても動く）
 import { useEffect, useRef, useState } from 'react';
-import { AppState, PermissionsAndroid, useColorScheme, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { AppState, BackHandler, PermissionsAndroid, useColorScheme, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView, WebViewMessageEvent } from 'react-native-webview';
@@ -21,6 +21,7 @@ type ScheduleMsg = {
 };
 type SayMsg = { type: 'say'; text: string; chime?: boolean };
 type ThemeMsg = { type: 'theme'; dark: boolean };
+type UiMsg = { type: 'battery' } | { type: 'sheet'; open: boolean };
 
 async function askNotification() {
   if (Platform.OS === 'android' && Number(Platform.Version) >= 33) {
@@ -36,6 +37,7 @@ function Main() {
   const [dark, setDark] = useState(useColorScheme() === 'dark');
   const [error, setError] = useState(Runner ? '' : '裏で動く部分（KoepaceRunner）がアプリに入っていません');
   const asked = useRef(false);
+  const sheetOpen = useRef(false);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const web = useRef<any>(null);
 
@@ -53,6 +55,16 @@ function Main() {
     return () => { clearInterval(t); s.remove(); };
   }, []);
 
+  // 戻るボタン：設定（⚙）が開いていれば閉じる
+  useEffect(() => {
+    const h = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (!sheetOpen.current) return false;
+      web.current?.injectJavaScript('window.koeBack&&window.koeBack();true;');
+      return true;
+    });
+    return () => h.remove();
+  }, []);
+
   useEffect(() => {
     try {
       if (Runner && !Runner.isIgnoringBatteryOptimizations()) setBatteryTip(true);
@@ -61,13 +73,21 @@ function Main() {
 
   async function onMessage(e: WebViewMessageEvent) {
     if (!Runner) return;
-    let m: ScheduleMsg | SayMsg | ThemeMsg;
+    let m: ScheduleMsg | SayMsg | ThemeMsg | UiMsg;
     try {
       m = JSON.parse(e.nativeEvent.data);
     } catch {
       return;
     }
     try {
+      if (m.type === 'sheet') {
+        sheetOpen.current = !!m.open;
+        return;
+      }
+      if (m.type === 'battery') {
+        Runner.openBatterySettings();
+        return;
+      }
       if (m.type === 'theme') {
         setDark(!!m.dark);
         return;

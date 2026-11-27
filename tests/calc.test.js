@@ -4,9 +4,9 @@ const fs = require('fs');
 const path = require('path');
 const html = fs.readFileSync(path.join(__dirname, '..', 'web', 'index.html'), 'utf8');
 function grab(start, end) { const i = html.indexOf(start); const j = html.indexOf(end, i); if (i < 0 || j < 0) throw new Error('見つからない: ' + start); return html.slice(i, j); }
-const src = grab('  var DISTS=', '  var R=null;') +
+const src = grab('  var DISTS=', '  var R=null;') + grab('  function kmLabel(', '\n') + '\n' +
   grab('  function dist(){', '  /* ---------- 声') +
-  'return {S:S, DISTS:DISTS, plan:plan, segPlan:segPlan, kmSchedule:kmSchedule, clockAt:clockAt, gunStartMs:gunStartMs, setLang:function(l){LANG=l;}};';
+  'return {S:S, DISTS:DISTS, plan:plan, segPlan:segPlan, kmSchedule:kmSchedule, clockAt:clockAt, gunStartMs:gunStartMs, setLang:function(l){LANG=l;}, dl:dl, dU:dU, dV:dV, pv:pv, MI:MI};';
 const mk = () => new Function(src)();
 
 let fails = 0, checks = 0;
@@ -114,6 +114,52 @@ for (const id of ['full', 'half', '10k', 'custom']) {
   ok(m.clockAt(b, 4 * 3600 + 5 * 60 + 30, true) === '13:05:30', 'EN 時刻');
   ok(m.clockAt(b, 15 * 3600) === '0:00 (+1d)', 'EN 日付またぎ');
   ok(m.clockAt(b, 40 * 3600) === '1:00 (+2d)', 'EN 2日後');
+}
+// ===== マイル版：中の計算はkmのまま、読み上げる地点・表示だけマイル =====
+{ const MI = 1.609344; let n0 = checks;
+  const near = (a, b, e = 1e-6) => Math.abs(a - b) < e;
+  for (const id of ['full', 'half', '10k', 'custom']) {
+    for (const customMi of (id === 'custom' ? [1, 3.1, 5, 13.1, 26.2, 31.1, 50, 62.1, 100, 124] : [0])) {
+      for (const interval of [1, 5]) {
+        for (const profile of ['even', 'neg', 'pos']) {
+          for (const paceMi of [300, 420, 480, 549, 600, 720, 900, 1200, 1800]) {
+            for (const adjCase of [0, 1]) {
+              const m = mk(); const S = m.S; S.unit = 'mi';
+              S.dist = id; S.customKm = customMi * MI; S.interval = interval; S.profile = profile;
+              const km = id === 'custom' ? S.customKm : m.DISTS.find(d => d.id === id).km;
+              S.goal = Math.round(paceMi / MI * km); S.adj = adjCase ? { 0: 6, 2: -4 } : {};
+              const p = m.plan(), sp = p.seg, tag = `mile ${id} ${customMi||''} iv${interval} ${profile} ${paceMi} adj${adjCase}`;
+              // 読み上げる地点：interval マイルの倍数＋ゴール
+              const exp = []; for (let n = 1; n * interval * MI < km - 0.01; n++) exp.push(n * interval * MI); exp.push(km);
+              ok(p.edges.length === exp.length, tag + ` 地点の数 ${p.edges.length} vs ${exp.length}`);
+              for (let i = 0; i < exp.length && i < p.edges.length; i++) ok(near(p.edges[i], exp[i], 1e-5), tag + ` 地点${i}の位置`);
+              // ペース配分の区切り：5マイルごと
+              const se = []; for (let n = 1; n * 5 * MI < km - 0.01; n++) se.push(n * 5 * MI); se.push(km);
+              ok(sp.edges.length === se.length && sp.edges.every((e, i) => near(e, se[i], 1e-5)), tag + ' 区切りが5マイルごとでない');
+              // 時刻：区間ペースを自前で積み上げた値と一致、増え続ける、ゴールは計画の合計
+              const at = (k) => { let tt = 0, prev = 0; for (let i = 0; i < sp.edges.length; i++) { const e = Math.min(k, sp.edges[i]); if (e > prev) tt += (e - prev) * sp.paces[i]; prev = sp.edges[i]; if (k <= sp.edges[i]) break; } return tt; };
+              for (let i = 0; i < p.edges.length; i++) { ok(near(p.times[i], at(p.edges[i]), 1e-4), tag + ` 地点${i}の時刻`); if (i) ok(p.times[i] > p.times[i - 1], tag + ' 時刻が増えていない'); }
+              ok(near(p.times[p.times.length - 1], p.goal) && near(p.goal, sp.total), tag + ' ゴール');
+              if (profile === 'even' && !adjCase) { ok(Math.abs(p.goal - S.goal) < 1e-6, tag + ' 均等で目標とずれる'); p.edges.forEach((e, i) => ok(near(p.times[i], S.goal * e / km, 1e-4), tag + ` 均等の地点${i}`)); }
+              // 1マイルごとの表
+              const ks = m.kmSchedule(); const e1 = []; for (let n = 1; n * MI < km - 0.01; n++) e1.push(n * MI); e1.push(km);
+              ok(ks.edges.length === e1.length && ks.edges.every((e, i) => near(e, e1[i], 1e-5)), tag + ' 1マイルごとの表の地点');
+              ks.edges.forEach((e, i) => ok(near(ks.times[i], at(e), 1e-4), tag + ` 表の時刻${i}`));
+              // 表示のマイル数：1, 2, 3 … とゴール
+              ok(m.dl(p.edges[0]) === String(interval) || p.edges.length === 1, tag + ' 最初の地点の表示 ' + m.dl(p.edges[0]));
+            }
+          }
+        }
+      }
+    }
+  }
+  { const m = mk(); m.S.unit = 'mi';
+    ok(m.dl(42.195) === '26.2' && m.dl(21.0975) === '13.1' && m.dl(10) === '6.2', 'mile 表示 フル26.2・ハーフ13.1・10K 6.2');
+    ok(Math.round(m.pv(14400 / 42.195)) === 549, 'mile サブ4の平均ペース 9:09/mi');
+    ok(m.dU(MI * 5) === '5マイル' && m.dV(MI) === '1マイル', 'mile 日本語の表示・読み上げ');
+    m.setLang('en'); ok(m.dU(MI * 5) === '5 mi' && m.dV(MI) === '1 mile' && m.dV(MI * 2) === '2 miles', 'mile 英語の表示・読み上げ');
+    m.S.unit = 'km'; ok(m.dV(5) === '5 K' && m.dU(5) === '5 km', 'km 英語の表示・読み上げ'); }
+  console.log(`マイル版のチェック ${checks - n0}件`);
 }
 console.log(`チェック ${checks}件、失敗 ${fails}件`);
 process.exit(fails ? 1 : 0);

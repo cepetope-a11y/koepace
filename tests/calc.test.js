@@ -6,7 +6,7 @@ const html = fs.readFileSync(path.join(__dirname, '..', 'web', 'index.html'), 'u
 function grab(start, end) { const i = html.indexOf(start); const j = html.indexOf(end, i); if (i < 0 || j < 0) throw new Error('見つからない: ' + start); return html.slice(i, j); }
 const src = grab('  var DISTS=', '  var R=null;') +
   grab('  function dist(){', '  /* ---------- 声') +
-  'return {S:S, DISTS:DISTS, plan:plan, segPlan:segPlan, kmSchedule:kmSchedule, clockAt:clockAt};';
+  'return {S:S, DISTS:DISTS, plan:plan, segPlan:segPlan, kmSchedule:kmSchedule, clockAt:clockAt, gunStartMs:gunStartMs};';
 const mk = () => new Function(src)();
 
 let fails = 0, checks = 0;
@@ -97,6 +97,17 @@ for (const id of ['full', 'half', '10k', 'custom']) {
   ok(m.clockAt(b, 15 * 3600) === '翌0:00', '時刻 日付またぎ');
   ok(m.clockAt(b, 40 * 3600) === '2日後 1:00', '時刻 2日後');
   ok(m.clockAt(new Date(2026, 10, 29, 5, 30).getTime(), 13 * 3600 + 59 * 60 + 59.6, true) === '19:30:00', '時刻 秒の四捨五入');
+}
+// 号砲の時刻からスタート：どの日の時刻とみなすか
+{ const m = mk(); const T = (d, h, mi) => new Date(2026, 10, d, h, mi, 0).getTime(); const H = 3600;
+  ok(m.gunStartMs(T(29, 10, 0), '09:00', 4 * H) === T(29, 9, 0), '号砲 押し忘れ（1時間前）');
+  ok(m.gunStartMs(T(29, 8, 20), '09:00', 4 * H) === T(29, 9, 0), '号砲 当日の予約');
+  ok(m.gunStartMs(T(28, 23, 0), '06:00', 4 * H) === T(29, 6, 0), '号砲 前日の夜に翌朝を予約');
+  ok(m.gunStartMs(T(28, 23, 0), '05:00', 14 * H) === T(29, 5, 0), '号砲 前日の夜にウルトラを予約');
+  ok(m.gunStartMs(T(29, 20, 0), '05:00', 14 * H) === T(29, 5, 0), '号砲 ウルトラの途中（15時間前）');
+  ok(m.gunStartMs(T(30, 3, 0), '22:00', 20 * H) === T(29, 22, 0), '号砲 夜スタートで日付をまたいだ');
+  ok(m.gunStartMs(T(29, 9, 0), '09:00', 4 * H) === T(29, 9, 0), '号砲 ちょうど今');
+  ok(m.gunStartMs(T(29, 9, 0), '', 4 * H) === null && m.gunStartMs(T(29, 9, 0), 'abc', 4 * H) === null, '号砲 未入力');
 }
 console.log(`チェック ${checks}件、失敗 ${fails}件`);
 process.exit(fails ? 1 : 0);

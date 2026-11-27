@@ -263,7 +263,7 @@ class RunnerService : Service() {
       .setCategory(Notification.CATEGORY_NAVIGATION)
       .setAutoCancel(true)
       .setContentIntent(content)
-      .addAction(action)
+      .apply { if (point >= 0) addAction(action) } // スタートのお知らせ（point=-1）には「着いた」を付けない
       .build()
     // 前の通知を消してから出し直す（ウォッチに毎回届くように）
     nm.cancel(POINT_NOTIFICATION_ID)

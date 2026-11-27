@@ -227,6 +227,12 @@ td{border-bottom:1px solid var(--hair)}
   </div>
   <p class="note" id="savedNote" style="display:none">設定を保存しました。当日このページを開くと、この画面から始まります（同じスマホ・同じブラウザで開いてください）。</p>
   <button class="big go" type="button" id="startBtn" style="min-height:120px;font-size:40px;border-radius:24px">スタート</button>
+  <div class="card">
+    <h2>号砲の時刻からスタート</h2>
+    <span class="small">スタートを押し忘れたとき、途中でアプリが止まって記録が消えたとき、あらかじめ予約したいときに。号砲の時刻から計測して、今の位置から読み上げます。</span>
+    <div class="row"><label for="gunClock" style="font-size:14px;font-weight:700">号砲の時刻</label><input id="gunClock" class="paceIn" type="time" style="width:130px;min-height:44px;border-radius:12px;text-align:center;font-size:18px"></div>
+    <button class="ghost" type="button" id="gunBtn" style="min-height:56px">-</button>
+  </div>
   <button class="ghost" type="button" id="backSetup">設定に戻る</button>
 </section>
 
@@ -398,7 +404,7 @@ td{border-bottom:1px solid var(--hair)}
     return o;}
   function syncNative(){if(!NATIVE)return;
     var m={type:'schedule',running:false};
-    if(R&&!R.finished){m={type:'schedule',running:true,voice:!!S.voice,notify:S.notify!==false,chime:S.chime!==false,lock:S.lock!==false,race:R.race||R.start,start:R.start,items:R.pausedAt?[]:R.times.map(function(tt,i){return {ms:Math.round(tt/R.speed*1000),text:annText(i),title:noteTitle(i),body:noteBody(i),point:i};})};}
+    if(R&&!R.finished){m={type:'schedule',running:true,voice:!!S.voice,notify:S.notify!==false,chime:S.chime!==false,lock:S.lock!==false,race:R.race||R.start,start:R.start,items:R.pausedAt?[]:(R.reserved?[{ms:0,text:'スタートの時刻になりました。計測を始めます。',title:'スタート',body:'計測を始めました',point:-1}]:[]).concat(R.times.map(function(tt,i){return {ms:Math.round(tt/R.speed*1000),text:annText(i),title:noteTitle(i),body:noteBody(i),point:i};}))};}
     var j=JSON.stringify(m); if(j===lastSync)return; lastSync=j; post(m);}
 
   function fmt(sec,forceH){sec=Math.round(Math.abs(sec));var h=Math.floor(sec/3600),m=Math.floor(sec%3600/60),s=sec%60;
@@ -433,6 +439,14 @@ td{border-bottom:1px solid var(--hair)}
     var o=d.getHours()+':'+('0'+d.getMinutes()).slice(-2)+(withSec?':'+('0'+d.getSeconds()).slice(-2):'');
     return (day===1?'翌':day>1?day+'日後 ':'')+o;}
   function startBase(){var v=S.startClock; if(!v||!/^\d{1,2}:\d{2}$/.test(v))return null; var a=v.split(':'), d=new Date(); d.setHours(+a[0],+a[1],0,0); return d.getTime();}
+
+  // 号砲の時刻（「9:00」）から、スタートした瞬間（ミリ秒）を決める
+  // 基本は今日のその時刻。12時間以上先なら昨日（夜スタートのウルトラ）、レースが終わっているほど前なら明日（前日に予約）
+  function gunStartMs(nowMs,clock,goalSec){if(!clock||!/^\d{1,2}:\d{2}$/.test(clock))return null; var a=clock.split(':'), d=new Date(nowMs);
+    d.setHours(+a[0],+a[1],0,0); var b=d.getTime();
+    if(b-nowMs>12*3600e3){d.setDate(d.getDate()-1); b=d.getTime();}
+    else if(nowMs-b>(goalSec+3*3600)*1000){d.setDate(d.getDate()+1); b=d.getTime();}
+    return b;}
 
   /* ---------- 声 ---------- */
   var jaVoice=null;
@@ -516,7 +530,7 @@ td{border-bottom:1px solid var(--hair)}
 
 
   /* ---------- 設定（⚙） ---------- */
-  var VER='0.9.3';
+  var VER='0.9.4';
   function openSettings(){$('speedCard').style.display=R?'none':'flex'; $('verTxt').textContent=VER; $('sheet').hidden=false; $('sheet').scrollTop=0; if(NATIVE)post({type:'sheet',open:true});}
   function closeSettings(){$('sheet').hidden=true; if(NATIVE)post({type:'sheet',open:false});}
   document.addEventListener('click',function(e){if(e.target.closest('[data-open-settings]'))openSettings();});
@@ -527,7 +541,7 @@ td{border-bottom:1px solid var(--hair)}
   /* ---------- 画面切り替え ---------- */
   function show(id){['v-setup','v-ready','v-run','v-change','v-result'].forEach(function(v){$(v).classList.toggle('on',v===id);}); document.documentElement.dataset.view=id; window.scrollTo(0,0);}
   function openReady(){var p=plan(); $('rChip').textContent=dist().label+' ・ 目標 '+fmt(S.goal,true);
-    $('rPace').textContent='平均 '+fmt(p.goal/p.km)+' /km'; $('rFirstKm').textContent=kmLabel(p.edges[0]); $('rFirstT').textContent=fmt(p.times[0],p.times[0]>=3600); show('v-ready');
+    $('rPace').textContent='平均 '+fmt(p.goal/p.km)+' /km'; $('rFirstKm').textContent=kmLabel(p.edges[0]); $('rFirstT').textContent=fmt(p.times[0],p.times[0]>=3600); show('v-ready'); renderGun();
     try{speechSynthesis.getVoices();}catch(e){} }
   $('toReady').addEventListener('click',function(){S.ready=true; S.savedAt=Date.now(); save(); openReady(); $('savedNote').style.display='block';});
   $('backSetup').addEventListener('click',function(){S.ready=false; save(); show('v-setup'); renderSetup();});
@@ -548,14 +562,31 @@ td{border-bottom:1px solid var(--hair)}
   async function keepAwake(){if(NATIVE)return; try{if('wakeLock' in navigator){wakeLock=await navigator.wakeLock.request('screen'); $('wakeNote').style.display='none'; return;}}catch(e){} $('wakeNote').style.display='block';}
   document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible'&&R&&!R.finished)keepAwake();});
 
-  $('startBtn').addEventListener('click',function(){audioCtx(); var p=plan();
-    R={start:Date.now(),speed:S.speed,km:p.km,goal:p.goal,edges:p.edges,times:p.times,seg:p.seg,rec:{},said:{},lockUntil:0,lastTap:null,finished:false,label:dist().label,origGoal:p.goal,changes:[]}; R.race=R.start;
-    save(); say('スタートしました。最初の読み上げは'+kmLabel(p.edges[0])+'キロ予定地点、'+ja(p.times[0])+'後です。'); buzz(80); keepAwake(); startRun();});
+  function beginRace(startMs,gun){var p=plan();
+    R={start:startMs,speed:gun?1:S.speed,km:p.km,goal:p.goal,edges:p.edges,times:p.times,seg:p.seg,rec:{},said:{},lockUntil:0,lastTap:null,finished:false,label:dist().label,origGoal:p.goal,changes:[]}; R.race=Date.now();
+    var now=Date.now(), t=(now-startMs)/1000, hm=function(){var d=new Date(startMs); return d.getHours()+'時'+d.getMinutes()+'分';};
+    if(gun){R.gun=1; if(startMs>now)R.reserved=1; else R.startSaid=1;}
+    save();
+    if(!gun)say('スタートしました。最初の読み上げは'+kmLabel(p.edges[0])+'キロ予定地点、'+ja(p.times[0])+'後です。');
+    else if(startMs>now)say(hm()+'のスタートを予約しました。時間になったら自動で計測を始めます。');
+    else{var ni=p.times.findIndex(function(x){return x>t;}); if(ni<0)ni=p.times.length-1;
+      say(hm()+'スタートとして計測を始めました。いまは'+kmLabel(Math.min(p.km,t/p.goal*p.km))+'キロ予定地点のあたりです。次の読み上げは'+(ni===p.edges.length-1?'ゴール':kmLabel(p.edges[ni])+'キロ予定地点')+'、'+ja(Math.max(1,p.times[ni]-t))+'後です。');}
+    buzz(80); keepAwake(); startRun();}
+  $('startBtn').addEventListener('click',function(){audioCtx(); beginRace(Date.now(),false);});
+  function gunInfo(){var b=gunStartMs(Date.now(),S.startClock,plan().goal); if(b===null)return null; var d=(b-Date.now())/1000; return {b:b,d:d};}
+  function renderGun(){if(document.activeElement!==$('gunClock'))$('gunClock').value=S.startClock||''; var g=gunInfo(), btn=$('gunBtn');
+    if(!g){btn.disabled=true; btn.textContent='号砲の時刻を入れてください'; return;} btn.disabled=false;
+    var hm=clockAt(g.b,0);
+    btn.innerHTML=g.d>0?('<b>'+hm+'</b> に自動スタートを予約<br><span class="small">あと '+fmt(g.d,g.d>=3600)+'</span>'):('<b>'+hm+'</b> スタートとして計測を始める<br><span class="small">'+fmt(-g.d,-g.d>=3600)+' 前にスタートしたことになります</span>');}
+  $('gunClock').addEventListener('change',function(){S.startClock=$('gunClock').value; save(); renderGun();});
+  $('gunBtn').addEventListener('click',function(){audioCtx(); var g=gunInfo(); if(g)beginRace(g.b,true);});
+  setInterval(function(){if($('v-ready').classList.contains('on'))renderGun();},1000);
   function startRun(){show('v-run'); buildTicks(); if(tickTimer)clearInterval(tickTimer); tickTimer=setInterval(tick,250); tick();}
   function buildTicks(){var n=R.km>=20?[0,10,20,30,40]:[0,Math.round(R.km/4),Math.round(R.km/2),Math.round(R.km*3/4)];
     n=n.filter(function(k){return k<R.km;}); $('ticks').innerHTML=n.map(function(k){return '<span>'+k+'</span>';}).join('')+'<span>G</span>';}
 
-  function tick(){if(!R)return; var t=elapsed(), now=Date.now();
+  function tick(){if(!R)return; var t=elapsed(), now=Date.now(), wait=t<0; if(wait)t=0;
+    if(R.reserved&&!wait&&!R.startSaid){R.startSaid=1; save(); if(now-R.start<30000){if(!NATIVE)sayChime('スタートの時刻になりました。計測を始めます。'); buzz(80);}}
     // 読み上げ
     for(var i=0;i<R.edges.length;i++){ if(!R.said[i]&&t>=R.times[i]){ R.said[i]=1; save();
         if(t-R.times[i]<30*R.speed){ var last=i===R.edges.length-1;
@@ -586,6 +617,7 @@ td{border-bottom:1px solid var(--hair)}
     else{ var ti=target(t), last2=ti===R.edges.length-1; $('passKm').textContent=last2?'ゴール':kmLabel(R.edges[ti])+'km'; $('passKm').nextElementSibling.textContent=last2?'に到着':'に着いた';
       $('passPlan').textContent='予定 '+fmt(R.times[ti],R.times[ti]>=3600)+''; }
     }
+    if(wait){$('timeLab').textContent='予約したスタートまで'; $('timeVal').textContent=fmt((R.start-now)/1000,true); $('nextLeft').textContent=fmt((R.start-now)/1000+R.times[0]/R.speed,true); $('passBtn').style.display='none'; $('shiftRow').style.display='none'; $('recPanel').classList.remove('on');}
     // 差
     var lr=lastRecorded();
     if(lr>=0&&(R.replanIdx==null||lr>R.replanIdx)){var d=R.rec[lr].diff, slow=d>=1, fast=d<=-1, c=slow?'var(--slow)':(fast?'var(--fast)':'var(--ok)');
@@ -610,7 +642,7 @@ td{border-bottom:1px solid var(--hair)}
   $('passBtn').addEventListener('click',function(){recordArrival(elapsed(),Date.now(),true);});
   // ウォッチの通知の「着いた」から（アプリが受け取った時刻で記録）
   window.koeArrive=function(atMs,pi){if(!R||R.finished||R.pausedAt)return; recordArrival((atMs-R.start)/1000*R.speed,atMs,false,pi);};
-  function recordArrival(t,now,fromScreen,pi){if(!R||R.pausedAt)return; if(now<R.lockUntil)return;
+  function recordArrival(t,now,fromScreen,pi){if(!R||R.pausedAt||t<0)return; if(now<R.lockUntil)return;
     var i=(pi!=null&&pi>=0&&pi<R.edges.length&&!R.rec[pi])?pi:target(t), d=t-R.times[i]; R.rec[i]={t:t,diff:d};
     R.lockUntil=now+60000/R.speed; R.lastTap={i:i,at:now}; R.manual=null; save(); buzz(120);
     var last=i===R.edges.length-1, where=last?'ゴール':kmLabel(R.edges[i])+'キロ';

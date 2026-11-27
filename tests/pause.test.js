@@ -31,7 +31,7 @@ let fails = 0, checks = 0; const ok = (c, m) => { checks++; if (!c) { fails++; c
   const r2 = await st(); const m2 = await last();
   const paused = r2.start - r0.start;
   ok(!r2.pausedAt && paused >= 2000, '再開でスタート時刻が止めた分ずれていない: ' + paused);
-  ok(m2.race === m0.race && m2.race === r0.start, '再開で別のレース扱いになっている');
+  ok(m2.race === m0.race && m2.race === r0.race, '再開で別のレース扱いになっている');
   ok(m2.items.length === m0.items.length && m2.items.every((x, i) => x.ms === m0.items[i].ms && x.point === i), '再開後の予定（スタートからの時間）が変わった');
   ok(m2.start === r2.start, 'アプリに新しいスタート時刻が渡っていない');
   ok(JSON.stringify(r2.times) === JSON.stringify(r0.times), '再開で予定時刻が変わった');

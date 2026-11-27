@@ -45,6 +45,8 @@ th{font-size:11px;color:var(--sub);font-weight:700;text-align:left;padding:6px 4
 td{padding:7px 4px;border-bottom:1px solid #2B3544}
 td.r,th.r{text-align:right}
 .tablebox{max-height:280px;overflow:auto;border-radius:10px}
+.tablebox thead th{position:sticky;top:0;z-index:1;background:#101828}
+[data-theme=light] .tablebox thead th{background:#EDEAE5}
 .big{min-height:58px;border:none;border-radius:29px;font-size:18px;font-weight:900;color:#FFFFFF;background:var(--accent);cursor:pointer;letter-spacing:.04em}
 .big.go{background:var(--go)}
 .ghost{min-height:48px;border:2px solid var(--line);background:var(--card);color:var(--ink);border-radius:14px;font-size:15px;font-weight:700;cursor:pointer}
@@ -298,6 +300,11 @@ td{border-bottom:1px solid var(--hair)}
     <p class="sub" id="cPreview">-</p>
     <button class="big" type="button" id="cApply">この目標に変更する</button>
   </div>
+  <div class="card">
+    <h2 id="cSchedH">読み上げの予定</h2>
+    <span class="small" id="cSchedNote">-</span>
+    <div class="tablebox" id="cSchedBox" style="max-height:300px"><table><thead><tr><th>地点</th><th class="r">経過タイム</th><th class="r">到着予定時刻</th></tr></thead><tbody id="cSchedBody"></tbody></table></div>
+  </div>
   <p class="small" style="margin:0">距離と読み上げの間隔は、レース中は変更できません</p>
   <button class="ghost" type="button" id="cBack">走行画面に戻る</button>
   <button class="ghost" type="button" id="pauseBtn" style="margin-top:12px">一時停止</button>
@@ -530,7 +537,7 @@ td{border-bottom:1px solid var(--hair)}
 
 
   /* ---------- 設定（⚙） ---------- */
-  var VER='0.9.4';
+  var VER='0.9.5';
   function openSettings(){$('speedCard').style.display=R?'none':'flex'; $('verTxt').textContent=VER; $('sheet').hidden=false; $('sheet').scrollTop=0; if(NATIVE)post({type:'sheet',open:true});}
   function closeSettings(){$('sheet').hidden=true; if(NATIVE)post({type:'sheet',open:false});}
   document.addEventListener('click',function(e){if(e.target.closest('[data-open-settings]'))openSettings();});
@@ -686,6 +693,7 @@ td{border-bottom:1px solid var(--hair)}
     for(var i=0;i<nt.length;i++){if(nt[i]>t){ni=i;break;}}
     var a=anchor(), per=(pendingGoal-a.t)/(R.km-a.km);
     $('cPreview').textContent=(pendingGoal===R.goal?'今の目標です。':'')+(ni>=0?'次は'+(ni===R.edges.length-1?'ゴール':kmLabel(R.edges[ni])+'km予定地点')+' '+fmt(nt[ni],nt[ni]>=3600)+'（この先のペース '+(per>0?fmt(per):'-')+' /km）':'');
+    renderChangeSched(nt,t);
     $('cApply').disabled=pendingGoal===R.goal; $('cApply').style.opacity=pendingGoal===R.goal?.4:1;}
   $('cMinus').addEventListener('click',function(){var a=anchor(); pendingGoal=Math.max(Math.ceil(a.t+(R.km-a.km)*120),pendingGoal-300); renderChange();});
   $('cPlus').addEventListener('click',function(){pendingGoal=Math.min(48*3600,pendingGoal+300); renderChange();});
@@ -697,6 +705,15 @@ td{border-bottom:1px solid var(--hair)}
     var dd=pendingGoal-R.goal; R.goal=pendingGoal; R.replanIdx=lastRecorded();
     for(var i=0;i<R.times.length;i++){ if(R.times[i]<=t)R.said[i]=1; else delete R.said[i]; }
     save(); say('目標を'+Math.abs(Math.round(dd/60))+'分'+(dd>0?'遅らせて':'早めて')+'、'+ja(R.goal)+'にしました。'); show('v-run'); tick();});
+  // 目標変更画面の予定表：まだ変更していなければ今の予定、−5分／＋5分を押したら変更後の予定
+  function renderChangeSched(nt,t){var base=R.start+(R.pausedAt?Date.now()-R.pausedAt:0), rows='', ni=-1, pend=pendingGoal!==R.goal;
+    for(var i=0;i<nt.length;i++){var last=i===R.edges.length-1, passed=nt[i]<=t; if(!passed&&ni<0)ni=i;
+      var rc=R.rec[i], st=passed?'opacity:.45':(i===ni?'font-weight:900;color:var(--accent)':'');
+      rows+='<tr style="'+st+'"'+(i===ni?' id="cSchedNext"':'')+'><td>'+(last?'ゴール':kmLabel(R.edges[i])+'km')+(rc?' <span class="small">（申告 '+(rc.diff>=1?'+':rc.diff<=-1?'−':'±')+fmt(rc.diff)+'）</span>':'')+'</td><td class="r num" style="font-size:17px">'+fmt(nt[i],nt[i]>=3600)+'</td><td class="r num" style="font-size:17px">'+clockAt(base,nt[i]/(R.speed||1),true)+'</td></tr>';}
+    $('cSchedBody').innerHTML=rows;
+    $('cSchedH').textContent=pend?'変更後の読み上げの予定':'読み上げの予定';
+    $('cSchedNote').textContent=(pend?'「この目標に変更する」を押すと、この予定になります。':'今の予定です。')+'到着予定時刻は、スタートした時刻から計算しています（関門の確認に）';
+    var nx=$('cSchedNext'), bx=$('cSchedBox'); if(nx&&bx)bx.scrollTop=Math.max(0,nx.offsetTop-80);}
   function renderPause(){if(!R)return; $('pauseBtn').textContent=R.pausedAt?'再開する':'一時停止';}
   $('pauseBtn').addEventListener('click',function(){if(!R||R.finished)return; var now=Date.now();
     if(R.pausedAt){ var dt=now-R.pausedAt; R.start+=dt; if(R.lockUntil>R.pausedAt)R.lockUntil+=dt; delete R.pausedAt; R.pauses=(R.pauses||0)+dt; save(); say('再開しました。'); show('v-run'); tick(); }

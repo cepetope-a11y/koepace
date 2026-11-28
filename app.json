@@ -8,7 +8,7 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.cepetope.koepace"
+      "bundleIdentifier": "com.makatomaker.koepacer"
     },
     "android": {
       "adaptiveIcon": {
@@ -16,7 +16,7 @@
         "backgroundColor": "#0F1A30"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.cepetope.koepace"
+      "package": "com.makatomaker.koepacer"
     },
     "web": {
       "favicon": "./assets/favicon.png"
